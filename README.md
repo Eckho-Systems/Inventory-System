@@ -1,50 +1,73 @@
-# Welcome to your Expo app 👋
+# Roberto's Inventory System
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Getting Started
 
-## Get started
+This is an offline-first inventory management system built with React Native and Expo, designed for Roberto's business to manage inventory, track transactions, and generate reports.
 
-1. Install dependencies
+### Prerequisites
 
+- [Node.js LTS](https://nodejs.org/)
+- [Expo CLI](https://expo.dev/)
+- [Watchman](https://facebook.github.io/watchman/) (for macOS/Linux)
+- [Xcode](https://developer.apple.com/xcode/) (for iOS development)
+- [Android Studio](https://developer.android.com/studio) (for Android development)
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
    ```bash
    npm install
    ```
-
-2. Start the app
-
+3. Start the development server:
    ```bash
-   npx expo start
+   npm start
    ```
+4. Follow the instructions in the terminal to open the app on your device or emulator.
 
-In the output, you'll find options to open the app in a
+### Available Scripts
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- `npm start` - Start the development server
+- `npm run android` - Run on Android device/emulator
+- `npm run ios` - Run on iOS simulator
+- `npm run web` - Run on web browser
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Project Structure
 
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/
+├── features/           # Feature-based modules
+│   ├── auth/          # Authentication
+│   ├── inventory/     # Inventory management
+│   ├── transactions/  # Transaction tracking
+│   ├── reports/       # Reporting
+│   └── users/         # User management
+├── database/          # Database setup and models
+├── services/          # API and business logic
+├── navigation/        # Navigation configuration
+├── utils/             # Utility functions
+├── types/             # TypeScript type definitions
+└── constants/         # Application constants
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Tech Stack
 
-## Learn more
+- **Frontend:** React Native with Expo
+- **Database:** SQLite (local, offline-first)
+- **State Management:** Zustand
+- **UI Library:** React Native Paper + NativeWind
+- **Navigation:** React Navigation
 
-To learn more about developing your project with Expo, look at the following resources:
+### Development
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Use TypeScript for type safety
+- Follow the feature-based architecture
+- Write tests for new features
+- Keep components small and focused
+- Use meaningful commit messages
 
-## Join the community
+### License
 
-Join our community of developers creating universal apps.
-
+MIT
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
