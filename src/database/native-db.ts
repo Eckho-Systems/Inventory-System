@@ -3,6 +3,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { createTables, dropTables, seedData } from './migrations/001_initial_schema';
+import { createCategoriesTable, seedCategories } from './migrations/002_add_categories';
 import { SQLiteDatabase } from './types';
 
 export const DATABASE_NAME = 'inventory.db';
@@ -23,8 +24,18 @@ export const initNativeDatabase = async (): Promise<void> => {
     await createTables(db);
     console.log('Database tables created successfully');
 
+    // Create categories table
+    await createCategoriesTable(db);
+    console.log('Categories table created successfully');
+
     // Seed data if needed
     await seedData(db);
+    console.log('Database seeded successfully');
+
+    // Seed categories if needed
+    await seedCategories(db);
+    console.log('Categories seeded successfully');
+
     console.log('Database initialization completed');
   } catch (error) {
     console.error('Database initialization failed:', error);

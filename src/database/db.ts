@@ -16,6 +16,7 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
     ensureStorageArray('items');
     ensureStorageArray('users');
     ensureStorageArray('transactions');
+    ensureStorageArray('categories');
 
     const getStoredData = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
     const setStoredData = (key: string, value: any[]) => localStorage.setItem(key, JSON.stringify(value));
@@ -227,6 +228,24 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           transactions.push(newTransaction);
           setStoredData('transactions', transactions);
           return { insertId: 1, rowsAffected: 1 };
+        } else if (sql.includes('INSERT INTO categories')) {
+          const [id, name, description, createdAt, updatedAt, createdBy, isActive] = args || [];
+          
+          const existingCategories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const newCategory = {
+            id,
+            name,
+            description,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            created_by: createdBy,
+            is_active: isActive
+          };
+          
+          existingCategories.push(newCategory);
+          localStorage.setItem('categories', JSON.stringify(existingCategories));
+          
+          return { insertId: 1, rowsAffected: 1 };
         } else if (sql.startsWith('UPDATE items SET')) {
           return applyItemUpdate(sql, args);
         } else if (sql.startsWith('DELETE FROM transactions')) {
@@ -295,6 +314,23 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           return users;
         } else if (sql.includes('SELECT * FROM transactions')) {
           return queryTransactions(sql, args || []);
+        } else if (sql.includes('SELECT * FROM categories')) {
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          
+          if (sql.includes('WHERE id = ?')) {
+            const categoryId = args?.[0];
+            const filteredCategories = categories.filter((category: any) => category.id === categoryId && category.is_active === 1);
+            return filteredCategories;
+          } else if (sql.includes('WHERE name = ?')) {
+            const categoryName = args?.[0];
+            const filteredCategories = categories.filter((category: any) => category.name === categoryName && category.is_active === 1);
+            return filteredCategories;
+          } else if (sql.includes('WHERE is_active = 1')) {
+            const activeCategories = categories.filter((category: any) => category.is_active === 1);
+            return activeCategories;
+          }
+          
+          return categories;
         }
         
         return [];
@@ -325,6 +361,9 @@ export const initDatabase = async (): Promise<void> => {
     if (!localStorage.getItem('users')) {
       localStorage.setItem('users', JSON.stringify([]));
     }
+    if (!localStorage.getItem('categories')) {
+      localStorage.setItem('categories', JSON.stringify([]));
+    }
     
     // Check if mock user already exists
     const existingUsers = JSON.parse(localStorage.getItem('users') || '[]');
@@ -347,6 +386,61 @@ export const initDatabase = async (): Promise<void> => {
       existingUsers.push(mockUser);
       localStorage.setItem('users', JSON.stringify(existingUsers));
       console.log('Web database initialized with mock user:', mockUser);
+      
+      // Initialize default categories for web
+      const existingCategories = JSON.parse(localStorage.getItem('categories') || '[]');
+      if (existingCategories.length === 0) {
+        const defaultCategories = [
+          {
+            id: 'category-001',
+            name: 'Electronics',
+            description: 'Electronic devices and accessories',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            created_by: 'owner-001',
+            is_active: 1,
+          },
+          {
+            id: 'category-002',
+            name: 'Cooking Oil',
+            description: 'Various types of cooking oils',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            created_by: 'owner-001',
+            is_active: 1,
+          },
+          {
+            id: 'category-003',
+            name: 'Seasonings',
+            description: 'Food seasonings and spices',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            created_by: 'owner-001',
+            is_active: 1,
+          },
+          {
+            id: 'category-004',
+            name: 'Beverages',
+            description: 'Drinks and liquids',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            created_by: 'owner-001',
+            is_active: 1,
+          },
+          {
+            id: 'category-005',
+            name: 'Office Supplies',
+            description: 'Office equipment and supplies',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            created_by: 'owner-001',
+            is_active: 1,
+          },
+        ];
+        
+        localStorage.setItem('categories', JSON.stringify(defaultCategories));
+        console.log('Web database initialized with default categories');
+      }
     } else {
       console.log('Mock user already exists in web database');
     }
@@ -382,6 +476,7 @@ export const resetWebDatabase = (): void => {
     localStorage.removeItem('users');
     localStorage.removeItem('items');
     localStorage.removeItem('transactions');
+    localStorage.removeItem('categories');
     localStorage.removeItem('mockUser');
     console.log('Web database reset complete');
   }
