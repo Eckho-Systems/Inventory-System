@@ -13,11 +13,17 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator = () => {
-  const { isAuthenticated, checkAuth } = useAuth();
+  const { isAuthenticated, checkAuth, initializeAuth, isLoading, isInitialized } = useAuth();
 
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    initializeAuth();
+  }, [initializeAuth]);
+
+  useEffect(() => {
+    if (isInitialized) {
+      checkAuth();
+    }
+  }, [checkAuth, isInitialized]);
 
   return (
     <NavigationContainer>

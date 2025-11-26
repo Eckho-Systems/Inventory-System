@@ -1,5 +1,5 @@
-import { hashPin } from '../../services/userService';
 import { UserRole } from '../../types/user';
+import { hashPin } from '../../utils/crypto';
 import { UserModel } from '../models/User';
 
 export const initDefaultData = async (): Promise<boolean> => {

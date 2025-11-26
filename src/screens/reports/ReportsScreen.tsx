@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, DataTable, FAB, IconButton, Modal, Portal, Text } from 'react-native-paper';
+import { useRealTimeUpdates } from '../../hooks/useRealTimeUpdates';
 import { transactionService } from '../../services/transactionService';
 import { Transaction, TransactionFilter, TransactionStats, TransactionType } from '../../types/transaction';
 import { exportReportStatsToCSV, exportTransactionsToCSV, shareCSV } from '../../utils/csvExport';
@@ -38,7 +39,7 @@ export const ReportsScreen: React.FC = () => {
     { id: 'item3', name: 'Liquid Seasoning' },
   ]);
 
-  const loadReportData = async () => {
+  const loadReportData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -100,12 +101,24 @@ export const ReportsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     loadReportData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [loadReportData]);
+
+  // Real-time updates
+  useRealTimeUpdates({
+    onTransactionUpdate: useCallback(() => {
+      console.log('Advanced Reports: Transaction update detected, refreshing data...');
+      loadReportData();
+    }, [loadReportData]),
+    onStockChange: useCallback((itemId: string, change: number) => {
+      console.log(`Advanced Reports: Stock change detected for item ${itemId}: ${change}`);
+      loadReportData();
+    }, [loadReportData]),
+    enabled: true,
+  });
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -117,10 +130,16 @@ export const ReportsScreen: React.FC = () => {
     const quantityColor = transaction.quantityChange > 0 ? '#4CAF50' : '#F44336';
     const quantityPrefix = transaction.quantityChange > 0 ? '+' : '';
     
+    // Clean user name in case it has quantity concatenated
+    const cleanUser = transaction.userName?.trim() || 'Unknown';
+    const userMatch = cleanUser.match(/^[\+\-]?\d+(.*)$/);
+    const finalUser = userMatch ? userMatch[1].trim() || 'Unknown' : cleanUser;
+    
     return {
       ...formatted,
-      quantity: `${quantityPrefix}${transaction.quantityChange}`,
+      quantity: `${quantityPrefix}${Math.abs(transaction.quantityChange)}`,
       quantityColor,
+      user: finalUser,
     };
   };
 
@@ -130,18 +149,26 @@ export const ReportsScreen: React.FC = () => {
     return (
       <DataTable.Row>
         <DataTable.Cell style={{ flex: 2 }}>
-          <Text style={styles.itemName}>{formatted.itemName}</Text>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <Text style={[styles.itemName, { textAlign: 'center' }]}>{formatted.itemName}</Text>
+          </View>
         </DataTable.Cell>
-        <DataTable.Cell numeric>
-          <Text style={{ color: formatted.quantityColor, fontWeight: 'bold' }}>
-            {formatted.quantity}
-          </Text>
+        <DataTable.Cell style={styles.changeColumn}>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <Text style={{ color: formatted.quantityColor, fontWeight: 'bold', textAlign: 'center' }}>
+              {formatted.quantity}
+            </Text>
+          </View>
         </DataTable.Cell>
         <DataTable.Cell style={{ flex: 1.5 }}>
-          <Text style={styles.userName}>{formatted.user}</Text>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <Text style={[styles.userName, { textAlign: 'center' }]}>{formatted.user}</Text>
+          </View>
         </DataTable.Cell>
         <DataTable.Cell style={{ flex: 1.5 }}>
-          <Text style={styles.timestamp}>{formatted.timestamp}</Text>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <Text style={[styles.timestamp, { textAlign: 'center' }]}>{formatted.timestamp}</Text>
+          </View>
         </DataTable.Cell>
       </DataTable.Row>
     );
@@ -276,7 +303,7 @@ export const ReportsScreen: React.FC = () => {
             <DataTable style={styles.table}>
               <DataTable.Header>
                 <DataTable.Title style={{ flex: 2 }}>Item Name</DataTable.Title>
-                <DataTable.Title numeric>Change</DataTable.Title>
+                <DataTable.Title style={styles.changeHeader}>Change</DataTable.Title>
                 <DataTable.Title style={{ flex: 1.5 }}>User</DataTable.Title>
                 <DataTable.Title style={{ flex: 1.5 }}>Time</DataTable.Title>
               </DataTable.Header>
@@ -501,6 +528,17 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 12,
     color: '#666',
+    textAlign: 'center',
+  },
+  changeColumn: {
+    textAlign: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeHeader: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   timestamp: {
     fontSize: 11,

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { getDatabase } from '../../database/db';
 import { CreateUserInput, LoginCredentials, UpdateUserInput, User } from '../../types/user';
+import { hashPin } from '../../utils/crypto';
 
 export class UserModel {
   static async create(userData: CreateUserInput): Promise<User> {
@@ -138,10 +139,6 @@ export class UserModel {
           console.log('Found mock user:', mockUser.username);
           
           // Verify PIN
-          const hashPin = (pin: string): string => {
-            return pin.split('').reverse().join('');
-          };
-          
           const inputPinHash = hashPin(credentials.pin);
           console.log('Web PIN verification:', {
             inputPin: credentials.pin,
@@ -192,10 +189,6 @@ export class UserModel {
     });
     
     // Verify PIN using the same hashing method as userService
-    const hashPin = (pin: string): string => {
-      return pin.split('').reverse().join('');
-    };
-    
     const inputPinHash = hashPin(credentials.pin);
     console.log('PIN verification:', {
       inputPin: credentials.pin,

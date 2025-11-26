@@ -9,7 +9,12 @@ import { useAuth } from '@/src/stores';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { user } = useAuth();
+  const { user, isInitialized, isLoading } = useAuth();
+
+  // Don't render tabs until auth is initialized
+  if (!isInitialized || isLoading) {
+    return null;
+  }
 
   const canViewReports = user?.role && ['manager', 'owner'].includes(user.role);
   const canManageUsers = user?.role === 'owner';
@@ -28,24 +33,22 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
-      {canViewReports && (
-        <Tabs.Screen
-          name="reports"
-          options={{
-            title: 'Reports',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
-          }}
-        />
-      )}
-      {canManageUsers && (
-        <Tabs.Screen
-          name="manage-users"
-          options={{
-            title: 'Users',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="reports"
+        options={{
+          title: 'Reports',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          href: canViewReports ? '/(tabs)/reports' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="manage-users"
+        options={{
+          title: 'Users',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
+          href: canManageUsers ? '/(tabs)/manage-users' : null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { initDefaultData } from './init/initDefaultData';
+import { hashPin } from '../utils/crypto';
 import { SQLiteDatabase, SQLResultSet, SQLTransaction } from './types';
 
 export const DATABASE_NAME = 'inventory.db';
@@ -262,8 +262,28 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           }
           
           return items;
-        } else if (sql.includes('SELECT id FROM users')) {
-          const users = JSON.parse(localStorage.getItem('users') || '[]');
+        } else if (sql.includes('SELECT id FROM users') || sql.includes('SELECT * FROM users')) {
+          let users = JSON.parse(localStorage.getItem('users') || '[]');
+          
+          // Also check mockUser and add to results if it matches
+          const mockUserStr = localStorage.getItem('mockUser');
+          if (mockUserStr) {
+            const mockUser = JSON.parse(mockUserStr);
+            // Add mockUser to the results if not already present
+            if (!users.find((u: any) => u.id === mockUser.id)) {
+              users.push({
+                id: mockUser.id,
+                username: mockUser.username,
+                pin_hash: mockUser.pin,
+                name: mockUser.name,
+                role: mockUser.role,
+                created_at: mockUser.createdAt,
+                updated_at: mockUser.updatedAt,
+                last_login_at: mockUser.lastLoginAt,
+                is_active: mockUser.isActive ? 1 : 0
+              });
+            }
+          }
           
           if (sql.includes('WHERE id = ?')) {
             const userId = args?.[0];
@@ -315,7 +335,7 @@ export const initDatabase = async (): Promise<void> => {
       const mockUser = {
         id: 'owner-001',
         username: 'owner',
-        pin_hash: '4321', // Hashed version of '1234'
+        pin_hash: hashPin('1234'), // Properly hash the PIN '1234'
         name: 'Business Owner',
         role: 'owner',
         created_at: Date.now(),
@@ -338,24 +358,31 @@ export const initDatabase = async (): Promise<void> => {
   const { initNativeDatabase } = await import('./native-db');
   await initNativeDatabase();
   console.log('Native database initialized');
-  
-  // Initialize default data including admin user if needed
-  console.log('Initializing default data including admin user if needed');
-  await initDefaultData();
-  console.log('Database initialization complete');
 };
 
 // Helper function to reset database (for development)
 export const resetDatabase = async (): Promise<void> => {
-  // For web platform, just log that database is reset (mock)
+  // For web platform, clear localStorage
   if (Platform.OS === 'web') {
-    console.log('Database reset (web mock)');
+    console.log('Clearing web database (localStorage)...');
+    localStorage.clear();
+    console.log('Web database cleared');
     return;
   }
 
   // For native platforms, use the native database implementation
   const { resetNativeDatabase } = await import('./native-db');
   await resetNativeDatabase();
-  // Initialize default data including admin user if needed
-  await initDefaultData();
+};
+
+// Helper function to reset web database specifically
+export const resetWebDatabase = (): void => {
+  if (Platform.OS === 'web') {
+    console.log('Resetting web database...');
+    localStorage.removeItem('users');
+    localStorage.removeItem('items');
+    localStorage.removeItem('transactions');
+    localStorage.removeItem('mockUser');
+    console.log('Web database reset complete');
+  }
 };

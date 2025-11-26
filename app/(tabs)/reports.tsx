@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    View,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
 import {
-    Card,
-    Chip,
-    DataTable,
-    Text
+  Card,
+  Chip,
+  DataTable,
+  Text
 } from 'react-native-paper';
 import { PermissionGuard } from '../../src/components/auth/PermissionGuard';
+import { useRealTimeUpdates } from '../../src/hooks/useRealTimeUpdates';
 import { transactionService } from '../../src/services';
 import { useAuth } from '../../src/stores';
 import { Transaction } from '../../src/types/transaction';
@@ -25,31 +27,70 @@ interface ReportFilters {
   transactionType: 'all' | 'add' | 'remove';
 }
 
+// Helper function to clean user name data
+const cleanUserName = (userName: string | undefined): string => {
+  if (!userName) return 'Unknown';
+  
+  // If userName contains numbers at the start (like "+5John Smith"), extract just the name
+  const cleaned = userName.trim();
+  const match = cleaned.match(/^[\+\-]?\d+(.*)$/);
+  
+  if (match) {
+    return match[1].trim() || 'Unknown';
+  }
+  
+  return cleaned;
+};
+
 export default function ReportsScreen() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const [filters, setFilters] = useState<ReportFilters>({
     timePeriod: 'daily',
     transactionType: 'all',
   });
 
-  useEffect(() => {
-    loadTransactions();
-  }, [filters]);
-
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     setLoading(true);
     try {
       // For now, get all transactions - in a real app, you'd apply filters
       const allTransactions = await transactionService.getAll();
+      console.log('Reports: Loaded transactions:', allTransactions.length, allTransactions);
       setTransactions(allTransactions);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Failed to load transactions:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Reports screen focused, refreshing data...');
+      loadTransactions();
+    }, [loadTransactions])
+  );
+
+  // Real-time updates
+  useRealTimeUpdates({
+    onTransactionUpdate: useCallback(() => {
+      console.log('Reports: Transaction update detected, refreshing data...');
+      loadTransactions();
+    }, [loadTransactions]),
+    onStockChange: useCallback((itemId: string, change: number) => {
+      console.log(`Reports: Stock change detected for item ${itemId}: ${change}`);
+      loadTransactions();
+    }, [loadTransactions]),
+    enabled: true,
+  });
 
   const getFilteredTransactions = () => {
     let filtered = transactions;
@@ -164,6 +205,9 @@ export default function ReportsScreen() {
               <Text style={styles.sectionTitle}>
                 {filters.timePeriod.charAt(0).toUpperCase() + filters.timePeriod.slice(1)} Report - {new Date().toLocaleDateString()}
               </Text>
+              <Text style={styles.lastUpdate}>
+                Last updated: {new Date(lastUpdate).toLocaleString()}
+              </Text>
               <Text style={styles.subtitle}>Filtered by: All Users, All Items</Text>
               
               <View style={styles.statsRow}>
@@ -192,29 +236,52 @@ export default function ReportsScreen() {
               ) : (
                 <DataTable>
                   <DataTable.Header>
-                    <DataTable.Title>Item Name</DataTable.Title>
-                    <DataTable.Title numeric>Change</DataTable.Title>
-                    <DataTable.Title>User</DataTable.Title>
-                    <DataTable.Title>Time</DataTable.Title>
+                    <DataTable.Title style={{ justifyContent: 'center' }}>Item Name</DataTable.Title>
+                    <DataTable.Title style={{ justifyContent: 'center' }}>Change</DataTable.Title>
+                    <DataTable.Title style={{ justifyContent: 'center' }}>User</DataTable.Title>
+                    <DataTable.Title style={{ justifyContent: 'center' }}>Time</DataTable.Title>
                   </DataTable.Header>
 
-                  {filteredTransactions.slice(0, 50).map((transaction) => (
-                    <DataTable.Row key={transaction.id}>
-                      <DataTable.Cell>{transaction.itemName}</DataTable.Cell>
-                      <DataTable.Cell numeric>
-                        <Text style={[
-                          styles.quantity,
-                          transaction.quantityChange > 0 ? styles.addition : styles.removal
-                        ]}>
-                          {transaction.quantityChange > 0 ? '+' : ''}{transaction.quantityChange}
-                        </Text>
-                      </DataTable.Cell>
-                      <DataTable.Cell>{transaction.userName}</DataTable.Cell>
-                      <DataTable.Cell>
-                        {new Date(transaction.timestamp).toLocaleDateString()}
-                      </DataTable.Cell>
-                    </DataTable.Row>
-                  ))}
+                  {filteredTransactions.slice(0, 50).map((transaction) => {
+                    const isNewItem = transaction.notes === 'Initial stock when creating item';
+                    return (
+                      <DataTable.Row key={transaction.id} style={isNewItem ? styles.newItemRow : undefined}>
+                        <DataTable.Cell>
+                          <View style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={styles.itemName}>{transaction.itemName}</Text>
+                            {isNewItem && (
+                              <Text style={styles.newItemBadge}>NEW</Text>
+                            )}
+                          </View>
+                        </DataTable.Cell>
+                        <DataTable.Cell>
+                          <View style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={[
+                              styles.quantity,
+                              isNewItem ? styles.newItemQuantity : 
+                              (transaction.quantityChange > 0 ? styles.addition : styles.removal)
+                            ]}>
+                              {transaction.quantityChange > 0 ? '+' : ''}{Math.abs(transaction.quantityChange)}
+                            </Text>
+                          </View>
+                        </DataTable.Cell>
+                        <DataTable.Cell>
+                          <View style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={styles.userName}>
+                              {cleanUserName(transaction.userName)}
+                            </Text>
+                          </View>
+                        </DataTable.Cell>
+                        <DataTable.Cell>
+                          <View style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={isNewItem ? styles.newItemTime : styles.timestamp}>
+                              {new Date(transaction.timestamp).toLocaleString()}
+                            </Text>
+                          </View>
+                        </DataTable.Cell>
+                      </DataTable.Row>
+                    );
+                  })}
                 </DataTable>
               )}
             </Card.Content>
@@ -252,6 +319,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 16,
+  },
+  lastUpdate: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
   filterRow: {
     marginBottom: 12,
@@ -296,5 +369,47 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     marginVertical: 20,
+  },
+  itemNameContainer: {
+    flexDirection: 'column',
+  },
+  newItemRow: {
+    backgroundColor: '#3a3a3a',
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  newItemBadge: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  newItemQuantity: {
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  newItemTime: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  itemName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  userName: {
+    fontSize: 12,
+    color: '#ccc',
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '600',
   },
 });

@@ -74,7 +74,10 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderItem = ({ item }: { item: Item }) => (
     <TouchableOpacity
-      style={styles.itemContainer}
+      style={[
+        styles.itemContainer,
+        item.quantity <= item.lowStockThreshold && styles.lowStockContainer
+      ]}
       onPress={() => handleItemPress(item)}
     >
       <View style={styles.itemHeader}>
@@ -270,6 +273,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 3,
+  },
+  lowStockContainer: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#ff6b6b',
+    borderWidth: 1,
   },
   itemHeader: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { TransactionModel } from '../database/models/Transaction';
 import { Transaction, TransactionFilter, TransactionStats, TransactionType } from '../types/transaction';
 import { UserRole } from '../types/user';
+import { eventEmitter } from '../utils/eventEmitter';
 
 export const transactionService = {
   async getAll(filter?: TransactionFilter): Promise<Transaction[]> {
@@ -50,7 +51,13 @@ export const transactionService = {
 
   async create(transactionData: Omit<Transaction, 'id' | 'timestamp'>): Promise<Transaction> {
     try {
-      return await TransactionModel.create(transactionData);
+      const transaction = await TransactionModel.create(transactionData);
+      
+      // Emit events for real-time updates
+      eventEmitter.emit('transaction:created', transaction);
+      eventEmitter.emit('stock:changed', transaction.itemId, transaction.quantityChange);
+      
+      return transaction;
     } catch (error) {
       console.error('Create transaction error:', error);
       throw error;
@@ -114,9 +121,20 @@ export const transactionService = {
     user: string;
     timestamp: string;
     notes?: string;
+    isNewItem?: boolean;
   } {
-    const action = transaction.transactionType === 'add' ? 'Added' : 'Removed';
-    const quantity = `${Math.abs(transaction.quantityChange)} units`;
+    const isNewItem = transaction.notes === 'Initial stock when creating item';
+    let action: string;
+    
+    if (isNewItem) {
+      action = 'New Item';
+    } else {
+      action = transaction.transactionType === 'add' ? 'Added' : 'Removed';
+    }
+    
+    const quantity = isNewItem 
+      ? `${Math.abs(transaction.quantityChange)} units (Initial)`
+      : `${Math.abs(transaction.quantityChange)} units`;
     const timestamp = new Date(transaction.timestamp).toLocaleString();
     
     return {
@@ -127,6 +145,7 @@ export const transactionService = {
       user: transaction.userName,
       timestamp,
       notes: transaction.notes || undefined,
+      isNewItem,
     };
   }
 };

@@ -23,10 +23,27 @@ export const itemService = {
     }
   },
 
-  async create(item: CreateItemInput, createdBy: string): Promise<Item | null> {
+  async create(item: CreateItemInput, createdBy: string, userInfo?: { id: string; name: string; role: UserRole }): Promise<Item | null> {
     try {
-      console.log('itemService.create called with:', { item, createdBy });
-      return await ItemModel.create(item, createdBy);
+      console.log('itemService.create called with:', { item, createdBy, userInfo });
+      const newItem = await ItemModel.create(item, createdBy);
+      
+      // If item has initial quantity > 0, create a transaction record
+      if (newItem && item.quantity > 0 && userInfo) {
+        await TransactionModel.create({
+          itemId: newItem.id,
+          itemName: newItem.name,
+          quantityChange: item.quantity,
+          userId: userInfo.id,
+          userName: userInfo.name,
+          userRole: userInfo.role,
+          transactionType: TransactionType.STOCK_ADD,
+          notes: 'Initial stock when creating item',
+        });
+        console.log('Created transaction for new item with initial quantity:', item.quantity);
+      }
+      
+      return newItem;
     } catch (error) {
       console.error('Create item error:', error);
       throw error;

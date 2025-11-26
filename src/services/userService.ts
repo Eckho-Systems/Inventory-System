@@ -1,16 +1,6 @@
 import { UserModel } from '../database/models/User';
 import { CreateUserInput, LoginCredentials, UpdateUserInput, User } from '../types/user';
-
-// Simple password hashing for demo purposes
-// In production, use bcrypt or similar
-export const hashPin = (pin: string): string => {
-  // For demo: just reverse the pin (NOT SECURE FOR PRODUCTION)
-  return pin.split('').reverse().join('');
-};
-
-const verifyPin = (pin: string, hashedPin: string): boolean => {
-  return hashPin(pin) === hashedPin;
-};
+import { hashPin, verifyPin } from '../utils/crypto';
 
 export const userService = {
   async authenticate(credentials: LoginCredentials): Promise<User | null> {

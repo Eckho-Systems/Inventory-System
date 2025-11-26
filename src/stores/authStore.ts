@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { userService } from '../services';
 import { LoginCredentials, User } from '../types/user';
 
@@ -7,19 +9,24 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  isInitialized: boolean;
   
   // Actions
   login: (credentials: LoginCredentials) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
   checkAuth: () => Promise<void>;
+  initializeAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      isInitialized: false,
 
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, error: null });
@@ -33,6 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isAuthenticated: true,
               isLoading: false,
               error: null,
+              isInitialized: true,
             });
             return true;
           } else {
@@ -41,6 +49,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isAuthenticated: false,
               isLoading: false,
               error: 'Invalid username or PIN',
+              isInitialized: true,
             });
             return false;
           }
@@ -51,6 +60,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: false,
             isLoading: false,
             error: 'Login failed. Please try again.',
+            isInitialized: true,
           });
           return false;
         }
@@ -62,6 +72,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: false,
           isLoading: false,
           error: null,
+          isInitialized: true,
         });
       },
 
@@ -81,7 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               get().logout();
             } else {
               // Update user data in case of changes
-              set({ user: currentUser });
+              set({ user: currentUser, isInitialized: true });
             }
           } catch (error) {
             console.error('Auth check error:', error);
@@ -89,7 +100,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
       },
-    })
+
+      initializeAuth: async () => {
+        const { user, isInitialized } = get();
+        
+        if (!isInitialized) {
+          set({ isLoading: true });
+          
+          if (user) {
+            try {
+              // Verify stored user still exists and is active
+              const currentUser = await userService.findById(user.id);
+              if (currentUser && currentUser.isActive) {
+                set({ 
+                  user: currentUser, 
+                  isAuthenticated: true, 
+                  isLoading: false,
+                  isInitialized: true 
+                });
+              } else {
+                // User no longer valid, clear auth
+                get().logout();
+              }
+            } catch (error) {
+              console.error('Auth initialization error:', error);
+              get().logout();
+            }
+          } else {
+            set({ isLoading: false, isInitialized: true });
+          }
+        }
+      },
+    }),
+    {
+      name: 'auth-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ 
+        user: state.user, 
+        isAuthenticated: state.isAuthenticated,
+        isInitialized: state.isInitialized
+      }),
+    }
+  )
 );
 
 // Helper hooks

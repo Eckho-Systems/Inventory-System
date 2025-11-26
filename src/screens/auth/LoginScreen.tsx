@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
 import {
-    Button,
-    Card,
-    Text,
-    TextInput
+  Button,
+  Card,
+  Text,
+  TextInput
 } from 'react-native-paper';
+import { DebugLoginHelper } from '../../components/auth/DebugLoginHelper';
 import { useAuth } from '../../stores';
 
 interface LoginScreenProps {
@@ -110,6 +111,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <Text style={styles.footerText}>
               Default credentials: owner / 1234
             </Text>
+            <DebugLoginHelper />
           </View>
         </View>
       </ScrollView>

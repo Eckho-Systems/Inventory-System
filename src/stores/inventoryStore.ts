@@ -85,7 +85,11 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       }
 
       console.log('Creating item with user ID:', user.id);
-      const newItem = await itemService.create(item, user.id);
+      const newItem = await itemService.create(item, user.id, {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+      });
       if (newItem) {
         set(state => ({
           items: [...state.items, newItem],
