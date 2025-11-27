@@ -229,7 +229,7 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           setStoredData('transactions', transactions);
           return { insertId: 1, rowsAffected: 1 };
         } else if (sql.includes('INSERT INTO categories')) {
-          const [id, name, description, createdAt, updatedAt, createdBy, isActive] = args || [];
+          const [id, name, description, createdAt, updatedAt, createdBy] = args || [];
           
           const existingCategories = JSON.parse(localStorage.getItem('categories') || '[]');
           const newCategory = {
@@ -238,8 +238,7 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
             description,
             created_at: createdAt,
             updated_at: updatedAt,
-            created_by: createdBy,
-            is_active: isActive
+            created_by: createdBy
           };
           
           existingCategories.push(newCategory);
@@ -248,6 +247,44 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           return { insertId: 1, rowsAffected: 1 };
         } else if (sql.startsWith('UPDATE items SET')) {
           return applyItemUpdate(sql, args);
+        } else if (sql.startsWith('UPDATE categories SET')) {
+          // Handle category updates
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const categoryId = args?.[args?.length - 1]; // Last argument is the ID
+          
+          if (!categoryId) {
+            return { insertId: 0, rowsAffected: 0 };
+          }
+
+          const categoryIndex = categories.findIndex((cat: any) => cat.id === categoryId);
+          if (categoryIndex === -1) {
+            return { insertId: 0, rowsAffected: 0 };
+          }
+
+          const setClause = sql.substring(sql.indexOf('SET') + 3, sql.indexOf('WHERE'))
+            .split(',')
+            .map(part => part.trim())
+            .filter(Boolean);
+
+          const updatedCategory = { ...categories[categoryIndex] };
+          let argIndex = 0;
+
+          setClause.forEach(clause => {
+            const columnMatch = clause.match(/^([a-zA-Z_]+)\s*=\s*\?/);
+            if (!columnMatch) {
+              return;
+            }
+            const column = columnMatch[1];
+            const value = args[argIndex++];
+            if (value !== undefined) {
+              updatedCategory[column] = value;
+            }
+          });
+
+          categories[categoryIndex] = updatedCategory;
+          localStorage.setItem('categories', JSON.stringify(categories));
+          console.log('Category updated in localStorage:', updatedCategory);
+          return { insertId: 0, rowsAffected: 1 };
         } else if (sql.startsWith('DELETE FROM transactions')) {
           const transactions = getStoredData('transactions');
           const id = args?.[0];
@@ -257,6 +294,26 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
             insertId: 0,
             rowsAffected: transactions.length - filtered.length,
           };
+        } else if (sql.startsWith('DELETE FROM categories')) {
+          // Handle deleting a category by ID
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const id = args?.[0];
+          const filtered = categories.filter((cat: any) => cat.id !== id);
+          setStoredData('categories', filtered);
+          console.log('Category deleted from localStorage, ID:', id);
+          return {
+            insertId: 0,
+            rowsAffected: categories.length - filtered.length,
+          };
+        } else if (sql.includes('SELECT COUNT(*) as count FROM items WHERE category')) {
+          // Handle category usage check for deletion
+          const items = JSON.parse(localStorage.getItem('items') || '[]');
+          const categoryName = args?.[0];
+          const itemsUsingCategory = items.filter((item: any) => 
+            item.category === categoryName
+          );
+          console.log('Items using category', categoryName, ':', itemsUsingCategory.length);
+          return [{ count: itemsUsingCategory.length }];
         }
         
         return { insertId: 0, rowsAffected: 0 };
@@ -319,15 +376,12 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           
           if (sql.includes('WHERE id = ?')) {
             const categoryId = args?.[0];
-            const filteredCategories = categories.filter((category: any) => category.id === categoryId && category.is_active === 1);
+            const filteredCategories = categories.filter((category: any) => category.id === categoryId);
             return filteredCategories;
           } else if (sql.includes('WHERE name = ?')) {
             const categoryName = args?.[0];
-            const filteredCategories = categories.filter((category: any) => category.name === categoryName && category.is_active === 1);
+            const filteredCategories = categories.filter((category: any) => category.name === categoryName);
             return filteredCategories;
-          } else if (sql.includes('WHERE is_active = 1')) {
-            const activeCategories = categories.filter((category: any) => category.is_active === 1);
-            return activeCategories;
           }
           
           return categories;
@@ -386,61 +440,6 @@ export const initDatabase = async (): Promise<void> => {
       existingUsers.push(mockUser);
       localStorage.setItem('users', JSON.stringify(existingUsers));
       console.log('Web database initialized with mock user:', mockUser);
-      
-      // Initialize default categories for web
-      const existingCategories = JSON.parse(localStorage.getItem('categories') || '[]');
-      if (existingCategories.length === 0) {
-        const defaultCategories = [
-          {
-            id: 'category-001',
-            name: 'Electronics',
-            description: 'Electronic devices and accessories',
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            created_by: 'owner-001',
-            is_active: 1,
-          },
-          {
-            id: 'category-002',
-            name: 'Cooking Oil',
-            description: 'Various types of cooking oils',
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            created_by: 'owner-001',
-            is_active: 1,
-          },
-          {
-            id: 'category-003',
-            name: 'Seasonings',
-            description: 'Food seasonings and spices',
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            created_by: 'owner-001',
-            is_active: 1,
-          },
-          {
-            id: 'category-004',
-            name: 'Beverages',
-            description: 'Drinks and liquids',
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            created_by: 'owner-001',
-            is_active: 1,
-          },
-          {
-            id: 'category-005',
-            name: 'Office Supplies',
-            description: 'Office equipment and supplies',
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            created_by: 'owner-001',
-            is_active: 1,
-          },
-        ];
-        
-        localStorage.setItem('categories', JSON.stringify(defaultCategories));
-        console.log('Web database initialized with default categories');
-      }
     } else {
       console.log('Mock user already exists in web database');
     }

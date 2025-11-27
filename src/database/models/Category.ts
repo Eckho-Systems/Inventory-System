@@ -14,8 +14,8 @@ export class CategoryModel {
     }
 
     await db.runAsync(
-      `INSERT INTO categories (id, name, description, created_at, updated_at, created_by, is_active) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO categories (id, name, description, created_at, updated_at, created_by) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         id,
         categoryData.name,
@@ -23,7 +23,6 @@ export class CategoryModel {
         now,
         now,
         createdBy,
-        1, // is_active
       ]
     );
 
@@ -37,7 +36,7 @@ export class CategoryModel {
   static async findById(id: string): Promise<Category | null> {
     const db = await getDatabase();
     const result = await db.getAllAsync(
-      'SELECT * FROM categories WHERE id = ? AND is_active = 1',
+      'SELECT * FROM categories WHERE id = ?',
       [id]
     );
     
@@ -52,7 +51,7 @@ export class CategoryModel {
   static async findByName(name: string): Promise<Category | null> {
     const db = await getDatabase();
     const result = await db.getAllAsync(
-      'SELECT * FROM categories WHERE name = ? AND is_active = 1',
+      'SELECT * FROM categories WHERE name = ?',
       [name]
     );
     
@@ -67,7 +66,7 @@ export class CategoryModel {
   static async getAll(): Promise<Category[]> {
     const db = await getDatabase();
     const result = await db.getAllAsync(
-      'SELECT * FROM categories WHERE is_active = 1 ORDER BY name ASC'
+      'SELECT * FROM categories ORDER BY name ASC'
     );
     
     return result.map(row => this.mapRowToCategory(row));
@@ -91,10 +90,6 @@ export class CategoryModel {
       updates.push('description = ?');
       values.push(categoryData.description);
     }
-    if (categoryData.isActive !== undefined) {
-      updates.push('is_active = ?');
-      values.push(categoryData.isActive ? 1 : 0);
-    }
 
     if (updates.length === 0) {
       return await this.findById(categoryData.id);
@@ -112,26 +107,47 @@ export class CategoryModel {
     return await this.findById(categoryData.id);
   }
 
-  static async deactivate(id: string): Promise<boolean> {
+  static async delete(id: string): Promise<boolean> {
     const db = await getDatabase();
+    
+    console.log('Attempting to delete category with ID:', id);
+    
+    // First check if category exists
+    const category = await this.findById(id);
+    if (!category) {
+      console.log('Category not found with ID:', id);
+      throw new Error('Category not found');
+    }
+    
+    console.log('Category found:', category.name);
     
     // Check if category is being used by any items
     const itemsUsingCategory = await db.getAllAsync(
-      'SELECT COUNT(*) as count FROM items WHERE category = (SELECT name FROM categories WHERE id = ?) AND is_active = 1',
-      [id]
+      'SELECT COUNT(*) as count FROM items WHERE category = ?',
+      [category.name]
     );
     
-    if (itemsUsingCategory[0].count > 0) {
+    console.log('Raw query result:', itemsUsingCategory);
+    
+    const itemCount = itemsUsingCategory && itemsUsingCategory[0] ? itemsUsingCategory[0].count : 0;
+    console.log('Items using this category:', itemCount);
+    
+    if (itemCount > 0) {
+      console.log('Cannot delete category - items are using it');
       throw new Error('Cannot delete category that is being used by items');
     }
 
+    console.log('Proceeding with category deletion');
     const result = await db.runAsync(
-      'UPDATE categories SET is_active = 0, updated_at = ? WHERE id = ?',
-      [Date.now(), id]
+      'DELETE FROM categories WHERE id = ?',
+      [id]
     );
+    
+    console.log('Deletion result - rows affected:', result.rowsAffected);
     
     return result.rowsAffected > 0;
   }
+
 
   private static mapRowToCategory(row: any): Category {
     return {
@@ -141,7 +157,7 @@ export class CategoryModel {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,
-      isActive: Boolean(row.is_active),
+      isActive: true, // All categories are now always active
     };
   }
 }

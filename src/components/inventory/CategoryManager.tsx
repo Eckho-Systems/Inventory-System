@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
 import {
-    Button,
-    Card,
-    IconButton,
-    Modal,
-    Portal,
-    Text,
-    TextInput
+  Button,
+  Card,
+  IconButton,
+  Modal,
+  Portal,
+  Text,
+  TextInput
 } from 'react-native-paper';
 import { CategoryService } from '../../services/categoryService';
 import { useAuth } from '../../stores/authStore';
@@ -24,6 +24,7 @@ export const CategoryManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
   // Form states
@@ -100,26 +101,27 @@ export const CategoryManager: React.FC = () => {
   };
 
   const handleDeleteCategory = async (category: Category) => {
-    Alert.alert(
-      'Delete Category',
-      `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await CategoryService.deleteCategory(category.id);
-              loadCategories();
-              Alert.alert('Success', 'Category deleted successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete category');
-            }
-          },
-        },
-      ]
-    );
+    console.log('Delete button pressed for category:', category.name, 'ID:', category.id);
+    setSelectedCategory(category);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!selectedCategory) return;
+    
+    setIsSubmitting(true);
+    try {
+      await CategoryService.deleteCategory(selectedCategory.id);
+      setShowDeleteModal(false);
+      setSelectedCategory(null);
+      loadCategories();
+      Alert.alert('Success', 'Category deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting category:', error);
+      Alert.alert('Error', error.message || 'Failed to delete category');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openEditModal = (category: Category) => {
@@ -132,6 +134,7 @@ export const CategoryManager: React.FC = () => {
   const closeModals = () => {
     setShowAddModal(false);
     setShowEditModal(false);
+    setShowDeleteModal(false);
     setSelectedCategory(null);
     setCategoryName('');
     setCategoryDescription('');
@@ -311,6 +314,44 @@ export const CategoryManager: React.FC = () => {
           </Card>
         </Modal>
       </Portal>
+
+      {/* Delete Confirmation Modal */}
+      <Portal>
+        <Modal
+          visible={showDeleteModal}
+          onDismiss={closeModals}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <Card style={styles.modalCard}>
+            <Card.Content>
+              <Text style={styles.modalTitle}>Delete Category</Text>
+              <Text style={styles.deleteWarningText}>
+                Are you sure you want to delete "{selectedCategory?.name}"? This action cannot be undone.
+              </Text>
+              
+              <View style={styles.modalButtons}>
+                <Button
+                  mode="outlined"
+                  onPress={closeModals}
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={confirmDeleteCategory}
+                  style={styles.deleteButton}
+                  buttonColor="#dc3545"
+                  disabled={isSubmitting}
+                  loading={isSubmitting}
+                >
+                  Delete
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
+        </Modal>
+      </Portal>
     </View>
   );
 };
@@ -411,6 +452,17 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     backgroundColor: '#007AFF',
+  },
+  deleteButton: {
+    flex: 1,
+    marginLeft: 8,
+    backgroundColor: '#dc3545',
+  },
+  deleteWarningText: {
+    fontSize: 16,
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   accessDeniedText: {
     fontSize: 16,
