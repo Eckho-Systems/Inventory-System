@@ -54,7 +54,7 @@ export class CategoryService {
       throw new Error('Only owners and managers can delete categories');
     }
 
-    return await CategoryModel.deactivate(id);
+    return await CategoryModel.delete(id);
   }
 
   static async getCategoryNames(): Promise<string[]> {
