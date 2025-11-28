@@ -18,6 +18,7 @@ export default function TabLayout() {
 
   const canViewReports = user?.role && ['manager', 'owner'].includes(user.role);
   const canManageUsers = user?.role === 'owner';
+  const canManageCategories = user?.role && ['manager', 'owner'].includes(user.role);
 
   return (
     <Tabs
@@ -47,6 +48,14 @@ export default function TabLayout() {
           title: 'Users',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
           href: canManageUsers ? '/(tabs)/manage-users' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="manage-categories"
+        options={{
+          title: 'Categories',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="folder.fill" color={color} />,
+          href: canManageCategories ? '/(tabs)/manage-categories' : null,
         }}
       />
     </Tabs>

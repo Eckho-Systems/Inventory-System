@@ -16,6 +16,7 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
     ensureStorageArray('items');
     ensureStorageArray('users');
     ensureStorageArray('transactions');
+    ensureStorageArray('categories');
 
     const getStoredData = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
     const setStoredData = (key: string, value: any[]) => localStorage.setItem(key, JSON.stringify(value));
@@ -227,8 +228,63 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           transactions.push(newTransaction);
           setStoredData('transactions', transactions);
           return { insertId: 1, rowsAffected: 1 };
+        } else if (sql.includes('INSERT INTO categories')) {
+          const [id, name, description, createdAt, updatedAt, createdBy] = args || [];
+          
+          const existingCategories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const newCategory = {
+            id,
+            name,
+            description,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            created_by: createdBy
+          };
+          
+          existingCategories.push(newCategory);
+          localStorage.setItem('categories', JSON.stringify(existingCategories));
+          
+          return { insertId: 1, rowsAffected: 1 };
         } else if (sql.startsWith('UPDATE items SET')) {
           return applyItemUpdate(sql, args);
+        } else if (sql.startsWith('UPDATE categories SET')) {
+          // Handle category updates
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const categoryId = args?.[args?.length - 1]; // Last argument is the ID
+          
+          if (!categoryId) {
+            return { insertId: 0, rowsAffected: 0 };
+          }
+
+          const categoryIndex = categories.findIndex((cat: any) => cat.id === categoryId);
+          if (categoryIndex === -1) {
+            return { insertId: 0, rowsAffected: 0 };
+          }
+
+          const setClause = sql.substring(sql.indexOf('SET') + 3, sql.indexOf('WHERE'))
+            .split(',')
+            .map(part => part.trim())
+            .filter(Boolean);
+
+          const updatedCategory = { ...categories[categoryIndex] };
+          let argIndex = 0;
+
+          setClause.forEach(clause => {
+            const columnMatch = clause.match(/^([a-zA-Z_]+)\s*=\s*\?/);
+            if (!columnMatch) {
+              return;
+            }
+            const column = columnMatch[1];
+            const value = args[argIndex++];
+            if (value !== undefined) {
+              updatedCategory[column] = value;
+            }
+          });
+
+          categories[categoryIndex] = updatedCategory;
+          localStorage.setItem('categories', JSON.stringify(categories));
+          console.log('Category updated in localStorage:', updatedCategory);
+          return { insertId: 0, rowsAffected: 1 };
         } else if (sql.startsWith('DELETE FROM transactions')) {
           const transactions = getStoredData('transactions');
           const id = args?.[0];
@@ -238,6 +294,26 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
             insertId: 0,
             rowsAffected: transactions.length - filtered.length,
           };
+        } else if (sql.startsWith('DELETE FROM categories')) {
+          // Handle deleting a category by ID
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          const id = args?.[0];
+          const filtered = categories.filter((cat: any) => cat.id !== id);
+          setStoredData('categories', filtered);
+          console.log('Category deleted from localStorage, ID:', id);
+          return {
+            insertId: 0,
+            rowsAffected: categories.length - filtered.length,
+          };
+        } else if (sql.includes('SELECT COUNT(*) as count FROM items WHERE category')) {
+          // Handle category usage check for deletion
+          const items = JSON.parse(localStorage.getItem('items') || '[]');
+          const categoryName = args?.[0];
+          const itemsUsingCategory = items.filter((item: any) => 
+            item.category === categoryName
+          );
+          console.log('Items using category', categoryName, ':', itemsUsingCategory.length);
+          return [{ count: itemsUsingCategory.length }];
         }
         
         return { insertId: 0, rowsAffected: 0 };
@@ -295,6 +371,20 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           return users;
         } else if (sql.includes('SELECT * FROM transactions')) {
           return queryTransactions(sql, args || []);
+        } else if (sql.includes('SELECT * FROM categories')) {
+          const categories = JSON.parse(localStorage.getItem('categories') || '[]');
+          
+          if (sql.includes('WHERE id = ?')) {
+            const categoryId = args?.[0];
+            const filteredCategories = categories.filter((category: any) => category.id === categoryId);
+            return filteredCategories;
+          } else if (sql.includes('WHERE name = ?')) {
+            const categoryName = args?.[0];
+            const filteredCategories = categories.filter((category: any) => category.name === categoryName);
+            return filteredCategories;
+          }
+          
+          return categories;
         }
         
         return [];
@@ -324,6 +414,9 @@ export const initDatabase = async (): Promise<void> => {
     }
     if (!localStorage.getItem('users')) {
       localStorage.setItem('users', JSON.stringify([]));
+    }
+    if (!localStorage.getItem('categories')) {
+      localStorage.setItem('categories', JSON.stringify([]));
     }
     
     // Check if mock user already exists
@@ -382,6 +475,7 @@ export const resetWebDatabase = (): void => {
     localStorage.removeItem('users');
     localStorage.removeItem('items');
     localStorage.removeItem('transactions');
+    localStorage.removeItem('categories');
     localStorage.removeItem('mockUser');
     console.log('Web database reset complete');
   }

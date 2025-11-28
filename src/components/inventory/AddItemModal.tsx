@@ -14,6 +14,7 @@ import {
     TextInput,
 } from 'react-native-paper';
 import { CreateItemInput } from '../../types/item';
+import { CategoryDropdown } from '../inventory/CategoryDropdown';
 
 interface AddItemModalProps {
   visible: boolean;
@@ -74,6 +75,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     onDismiss();
   };
 
+  const isFormValid = () => {
+    return name.trim() && 
+           category.trim() && 
+           quantity.trim() && 
+           !isNaN(parseInt(quantity, 10)) && 
+           parseInt(quantity, 10) >= 0 &&
+           !isNaN(parseInt(lowStockThreshold, 10)) && 
+           parseInt(lowStockThreshold, 10) >= 0;
+  };
+
   return (
     <Portal>
       <Modal
@@ -98,13 +109,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 error={!!name && name.trim().length === 0}
               />
 
-              <TextInput
-                label="Category"
-                value={category}
-                onChangeText={setCategory}
-                mode="outlined"
-                style={styles.input}
-                error={!!category && category.trim().length === 0}
+              <CategoryDropdown
+                selectedCategory={category}
+                onCategorySelect={setCategory}
+                error={!category}
               />
 
               <TextInput
@@ -152,14 +160,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   style={styles.confirmButton}
                   disabled={
                     isLoading ||
-                    !name.trim() ||
-                    !category.trim() ||
-                    !quantity.trim() ||
-                    isNaN(parseInt(quantity, 10)) ||
-                    parseInt(quantity, 10) < 0 ||
-                    !lowStockThreshold.trim() ||
-                    isNaN(parseInt(lowStockThreshold, 10)) ||
-                    parseInt(lowStockThreshold, 10) < 0
+                    !isFormValid()
                   }
                   loading={isLoading}
                 >
