@@ -1,4 +1,5 @@
 import { CreateItemInput, Item, UpdateItemInput } from '../../types/item';
+import { TransactionType } from '../../types/transaction';
 import { getDatabase } from '../db';
 
 export class ItemModel {
@@ -195,6 +196,72 @@ export class ItemModel {
     );
     
     return result.rowsAffected > 0;
+  }
+
+  static async delete(id: string, userInfo?: { id: string; name: string; role: string }): Promise<boolean> {
+    const db = await getDatabase();
+    
+    try {
+      console.log('Starting delete operation for item:', id);
+      
+      // Get the item details before deletion for the transaction log
+      const itemToDelete = await this.findById(id);
+      if (!itemToDelete) {
+        console.log('Item not found for deletion:', id);
+        return false;
+      }
+      
+      // Start transaction
+      await db.runAsync('BEGIN TRANSACTION');
+      console.log('Transaction started');
+      
+      // Create a transaction record for the deletion before deleting the item
+      if (userInfo) {
+        const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await db.runAsync(
+          `INSERT INTO transactions (id, item_id, item_name, quantity_change, user_id, user_name, user_role, timestamp, transaction_type, notes) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            transactionId,
+            itemToDelete.id,
+            itemToDelete.name,
+            0, // No quantity change for item deletion
+            userInfo.id,
+            userInfo.name,
+            userInfo.role,
+            Date.now(),
+            TransactionType.ITEM_DELETE,
+            'Item deleted from inventory'
+          ]
+        );
+        console.log('Delete transaction created:', transactionId);
+      }
+      
+      // Delete the item
+      const result = await db.runAsync('DELETE FROM items WHERE id = ?', [id]);
+      console.log('Item delete result:', result);
+      
+      // Commit transaction
+      await db.runAsync('COMMIT');
+      console.log('Transaction committed');
+      
+      // For web SQLite, assume success if no error was thrown
+      // The SQL operations are executing (we see them in logs), so if no error, consider it successful
+      console.log('Delete operation completed successfully');
+      
+      return true;
+    } catch (error) {
+      // Rollback on error
+      try {
+        await db.runAsync('ROLLBACK');
+        console.log('Transaction rolled back due to error');
+      } catch (rollbackError) {
+        console.error('Failed to rollback transaction:', rollbackError);
+      }
+      
+      console.error('Delete item error:', error);
+      throw error;
+    }
   }
 
   private static mapRowToItem(row: any): Item {

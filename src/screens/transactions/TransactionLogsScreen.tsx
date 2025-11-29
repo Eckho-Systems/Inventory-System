@@ -123,12 +123,23 @@ export const TransactionLogsScreen: React.FC = () => {
 
   const formatTransaction = (transaction: Transaction) => {
     const formatted = transactionService.formatTransaction(transaction);
-    const quantityColor = transaction.quantityChange > 0 ? '#4CAF50' : '#F44336';
-    const quantityPrefix = transaction.quantityChange > 0 ? '+' : '';
+    const isDeletion = transaction.transactionType === TransactionType.ITEM_DELETE;
+    
+    let quantityColor = '#333';
+    let quantity = '0';
+    
+    if (isDeletion) {
+      quantityColor = '#d32f2f';
+      quantity = 'DELETED';
+    } else {
+      quantityColor = transaction.quantityChange > 0 ? '#4CAF50' : '#F44336';
+      const quantityPrefix = transaction.quantityChange > 0 ? '+' : '';
+      quantity = `${quantityPrefix}${transaction.quantityChange}`;
+    }
     
     return {
       ...formatted,
-      quantity: `${quantityPrefix}${transaction.quantityChange}`,
+      quantity,
       quantityColor,
     };
   };

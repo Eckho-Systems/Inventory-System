@@ -1,3 +1,4 @@
+import React from 'react';
 import { create } from 'zustand';
 import { itemService } from '../services';
 import { CreateItemInput, Item, StockAdjustmentInput, UpdateItemInput } from '../types/item';
@@ -176,8 +177,28 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      const success = await itemService.deactivate(id);
+      console.log('Attempting to delete item:', id);
+      
+      // Get current user from auth store
+      const authState = useAuthStore.getState();
+      const user = authState.user;
+      
+      if (!user) {
+        console.error('No user found in auth store for delete operation');
+        set({ isLoading: false, error: 'User not authenticated' });
+        return false;
+      }
+      
+      const userInfo = {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+      };
+      
+      const success = await itemService.delete(id, userInfo);
+      
       if (success) {
+        // Remove the deleted item from local state
         set(state => ({
           items: state.items.filter(item => item.id !== id),
           isLoading: false,
@@ -274,16 +295,111 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
 // Custom hook for inventory with additional helpers
 export const useInventory = () => {
-  const store = useInventoryStore();
+  // Use individual selectors to ensure reactivity for computed values
+  const items = useInventoryStore(state => state.items);
+  const searchQuery = useInventoryStore(state => state.searchQuery);
+  const selectedCategory = useInventoryStore(state => state.selectedCategory);
+  const sortBy = useInventoryStore(state => state.sortBy);
+  const sortOrder = useInventoryStore(state => state.sortOrder);
+  const categories = useInventoryStore(state => state.categories);
+  const isLoading = useInventoryStore(state => state.isLoading);
+  const error = useInventoryStore(state => state.error);
+  
+  // Get all the actions
+  const {
+    loadItems,
+    loadCategories,
+    addItem,
+    updateItem,
+    adjustStock,
+    deleteItem,
+    setSearchQuery,
+    setSelectedCategory,
+    setSortBy,
+    setSortOrder,
+    refreshItems,
+    clearError,
+    getItemById,
+    getLowStockItems,
+  } = useInventoryStore.getState();
+  
+  // Compute filtered items reactively
+  const filteredItems = React.useMemo(() => {
+    let filtered = items;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Filter by category
+    if (selectedCategory) {
+      filtered = filtered.filter(item => item.category === selectedCategory);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'quantity':
+          comparison = a.quantity - b.quantity;
+          break;
+        case 'lastAdded':
+          const aDate = new Date(a.lastStockAdded || a.dateAdded).getTime();
+          const bDate = new Date(b.lastStockAdded || b.dateAdded).getTime();
+          comparison = aDate - bDate;
+          break;
+      }
+      
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+    
+    return filtered;
+  }, [items, searchQuery, selectedCategory, sortBy, sortOrder]);
+  
+  // Compute low stock items reactively
+  const lowStockItems = React.useMemo(() => {
+    return items.filter(item => item.quantity <= item.lowStockThreshold);
+  }, [items]);
   
   return {
-    ...store,
-    // Additional computed values
-    filteredItems: store.getFilteredItems(),
-    lowStockItems: store.getLowStockItems(),
-    hasLowStockItems: store.getLowStockItems().length > 0,
-    totalItems: store.items.length,
-    totalQuantity: store.items.reduce((sum, item) => sum + item.quantity, 0),
-    categories: ['All', ...store.categories],
+    // State
+    items,
+    categories,
+    isLoading,
+    error,
+    searchQuery,
+    selectedCategory,
+    sortBy,
+    sortOrder,
+    
+    // Computed values
+    filteredItems,
+    lowStockItems,
+    hasLowStockItems: lowStockItems.length > 0,
+    totalItems: items.length,
+    totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+    categoriesWithAll: ['All', ...categories],
+    
+    // Actions
+    loadItems,
+    loadCategories,
+    addItem,
+    updateItem,
+    adjustStock,
+    deleteItem,
+    setSearchQuery,
+    setSelectedCategory,
+    setSortBy,
+    setSortOrder,
+    refreshItems,
+    clearError,
+    getItemById,
   };
 };

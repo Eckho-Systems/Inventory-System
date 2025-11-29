@@ -7,7 +7,11 @@ import { UserRole } from '../types/user';
 export const itemService = {
   async getAll(): Promise<Item[]> {
     try {
-      return await ItemModel.getAll();
+      console.log('Loading all items from database...');
+      const items = await ItemModel.getAll();
+      console.log('Loaded items:', items.length);
+      console.log('Items data:', items.map(item => ({ id: item.id, name: item.name })));
+      return items;
     } catch (error) {
       console.error('Get all items error:', error);
       throw error;
@@ -236,6 +240,15 @@ export const itemService = {
       return await ItemModel.deactivate(id);
     } catch (error) {
       console.error('Deactivate item error:', error);
+      throw error;
+    }
+  },
+
+  async delete(id: string, userInfo?: { id: string; name: string; role: UserRole }): Promise<boolean> {
+    try {
+      return await ItemModel.delete(id, userInfo);
+    } catch (error) {
+      console.error('Delete item error:', error);
       throw error;
     }
   }

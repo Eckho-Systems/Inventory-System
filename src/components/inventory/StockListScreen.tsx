@@ -31,7 +31,7 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
     setSearchQuery, 
     selectedCategory, 
     setSelectedCategory, 
-    categories, 
+    categoriesWithAll, 
     sortBy, 
     setSortBy, 
     sortOrder, 
@@ -152,7 +152,7 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
           >
             All
           </Chip>
-          {categories.slice(1).map((category) => (
+          {categoriesWithAll.slice(1).map((category) => (
             <Chip
               key={category}
               selected={selectedCategory === category}
@@ -167,7 +167,10 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.sortContainer}>
           <Button
             mode="outlined"
-            onPress={() => setSortBy(sortBy === 'name' ? 'quantity' : sortBy === 'quantity' ? 'lastAdded' : 'name')}
+            onPress={() => {
+              const newSortBy = sortBy === 'name' ? 'quantity' : sortBy === 'quantity' ? 'lastAdded' : 'name';
+              setSortBy(newSortBy);
+            }}
             style={styles.sortButton}
           >
             Sort: {sortBy === 'name' ? 'Name' : sortBy === 'quantity' ? 'Quantity' : 'Last Added'}
@@ -187,6 +190,7 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        extraData={[sortBy, sortOrder]} // Force re-render when sort changes
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={styles.emptyText}>No items found</Text>

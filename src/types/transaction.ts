@@ -3,6 +3,7 @@ import { UserRole } from './user';
 export enum TransactionType {
   STOCK_ADD = 'add',
   STOCK_REMOVE = 'remove',
+  ITEM_DELETE = 'delete',
 }
 
 export interface Transaction {

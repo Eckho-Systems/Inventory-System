@@ -227,6 +227,7 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
 
           transactions.push(newTransaction);
           setStoredData('transactions', transactions);
+          console.log('Transaction created:', newTransaction);
           return { insertId: 1, rowsAffected: 1 };
         } else if (sql.includes('INSERT INTO categories')) {
           const [id, name, description, createdAt, updatedAt, createdBy] = args || [];
@@ -287,12 +288,51 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
           return { insertId: 0, rowsAffected: 1 };
         } else if (sql.startsWith('DELETE FROM transactions')) {
           const transactions = getStoredData('transactions');
+          
+          if (sql.includes('WHERE item_id = ?')) {
+            if (sql.includes('AND transaction_type != ?')) {
+              // Delete transactions by item_id but exclude a specific transaction type
+              const itemId = args?.[0];
+              const excludeType = args?.[1];
+              const filtered = transactions.filter((txn: any) => 
+                txn.item_id !== itemId || txn.transaction_type === excludeType
+              );
+              setStoredData('transactions', filtered);
+              console.log('Deleted transactions for item_id:', itemId, 'excluding type:', excludeType, 'Count:', transactions.length - filtered.length);
+              return {
+                insertId: 0,
+                rowsAffected: transactions.length - filtered.length,
+              };
+            } else {
+              // Delete all transactions by item_id
+              const itemId = args?.[0];
+              const filtered = transactions.filter((txn: any) => txn.item_id !== itemId);
+              setStoredData('transactions', filtered);
+              console.log('Deleted all transactions for item_id:', itemId, 'Count:', transactions.length - filtered.length);
+              return {
+                insertId: 0,
+                rowsAffected: transactions.length - filtered.length,
+              };
+            }
+          } else {
+            // Delete transaction by ID
+            const id = args?.[0];
+            const filtered = transactions.filter((txn: any) => txn.id !== id);
+            setStoredData('transactions', filtered);
+            return {
+              insertId: 0,
+              rowsAffected: transactions.length - filtered.length,
+            };
+          }
+        } else if (sql.startsWith('DELETE FROM items')) {
+          const items = getStoredData('items');
           const id = args?.[0];
-          const filtered = transactions.filter((txn: any) => txn.id !== id);
-          setStoredData('transactions', filtered);
+          const filtered = items.filter((item: any) => item.id !== id);
+          setStoredData('items', filtered);
+          console.log('Deleted item from localStorage, ID:', id, 'Count:', items.length - filtered.length);
           return {
             insertId: 0,
-            rowsAffected: transactions.length - filtered.length,
+            rowsAffected: items.length - filtered.length,
           };
         } else if (sql.startsWith('DELETE FROM categories')) {
           // Handle deleting a category by ID

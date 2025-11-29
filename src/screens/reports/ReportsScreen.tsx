@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Chip, DataTable, FAB, IconButton, Modal, Portal, Text } from 'react-native-paper';
+import { Button, Card, Chip, DataTable, FAB, Modal, Portal, Text } from 'react-native-paper';
 import { useRealTimeUpdates } from '../../hooks/useRealTimeUpdates';
 import { transactionService } from '../../services/transactionService';
 import { Transaction, TransactionFilter, TransactionStats, TransactionType } from '../../types/transaction';
@@ -12,7 +12,7 @@ interface ReportFilters {
   endDate?: Date;
   userId?: string;
   itemId?: string;
-  transactionType: 'all' | 'add' | 'remove';
+  transactionType: 'all' | 'add' | 'remove' | 'delete';
 }
 
 export const ReportsScreen: React.FC = () => {
@@ -85,7 +85,13 @@ export const ReportsScreen: React.FC = () => {
       }
       
       if (filters.transactionType !== 'all') {
-        filter.type = filters.transactionType === 'add' ? TransactionType.STOCK_ADD : TransactionType.STOCK_REMOVE;
+        if (filters.transactionType === 'add') {
+          filter.type = TransactionType.STOCK_ADD;
+        } else if (filters.transactionType === 'remove') {
+          filter.type = TransactionType.STOCK_REMOVE;
+        } else if (filters.transactionType === 'delete') {
+          filter.type = TransactionType.ITEM_DELETE;
+        }
       }
       
       const [transactionsData, statsData] = await Promise.all([
@@ -127,8 +133,31 @@ export const ReportsScreen: React.FC = () => {
 
   const formatTransaction = (transaction: Transaction) => {
     const formatted = transactionService.formatTransaction(transaction);
-    const quantityColor = transaction.quantityChange > 0 ? '#4CAF50' : '#F44336';
-    const quantityPrefix = transaction.quantityChange > 0 ? '+' : '';
+    const isDeletion = transaction.transactionType === TransactionType.ITEM_DELETE || 
+                       transaction.notes?.includes('deleted') ||
+                       transaction.notes?.includes('Item deleted');
+    
+    // Single debug log for delete transactions
+    if (transaction.itemName === 'woof' || transaction.itemName === 'cs') {
+      console.log('Delete transaction check:', {
+        itemName: transaction.itemName,
+        transactionType: transaction.transactionType,
+        notes: transaction.notes,
+        isDeletion
+      });
+    }
+    
+    let quantityColor = '#333';
+    let quantity = '0';
+    
+    if (isDeletion) {
+      quantityColor = '#d32f2f';
+      quantity = 'DELETED';
+    } else {
+      quantityColor = transaction.quantityChange > 0 ? '#4CAF50' : '#F44336';
+      const quantityPrefix = transaction.quantityChange > 0 ? '+' : '';
+      quantity = `${quantityPrefix}${Math.abs(transaction.quantityChange)}`;
+    }
     
     // Clean user name in case it has quantity concatenated
     const cleanUser = transaction.userName?.trim() || 'Unknown';
@@ -137,7 +166,7 @@ export const ReportsScreen: React.FC = () => {
     
     return {
       ...formatted,
-      quantity: `${quantityPrefix}${Math.abs(transaction.quantityChange)}`,
+      quantity,
       quantityColor,
       user: finalUser,
     };
@@ -193,7 +222,12 @@ export const ReportsScreen: React.FC = () => {
       parts.push(`Item: ${item?.name || 'Unknown'}`);
     }
     if (filters.transactionType !== 'all') {
-      parts.push(`Type: ${filters.transactionType === 'add' ? 'Add Only' : 'Remove Only'}`);
+      const typeMap = {
+        'add': 'Add Only',
+        'remove': 'Remove Only', 
+        'delete': 'Delete Only'
+      };
+      parts.push(`Type: ${typeMap[filters.transactionType]}`);
     }
     return parts.length > 0 ? `Filtered by: ${parts.join(', ')}` : 'Filtered by: All Users, All Items';
   };
@@ -247,55 +281,65 @@ export const ReportsScreen: React.FC = () => {
             <Text style={styles.title}>{getReportTitle()}</Text>
             <Text style={styles.filterDescription}>{getFilterDescription()}</Text>
           </View>
-          <IconButton
-            icon="download"
-            size={24}
+          <Button
+            mode="outlined"
             onPress={handleExportCSV}
-            disabled={transactions.length === 0}
             style={styles.exportButton}
-          />
+          >
+            Export CSV
+          </Button>
         </View>
-        
-        {stats && (
-          <Card style={styles.statsCard}>
-            <Card.Content>
-              <Text style={styles.statsTitle}>Summary Statistics</Text>
-              
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.totalTransactions}</Text>
-                  <Text style={styles.statLabel}>Total Transactions</Text>
+
+        <Card style={styles.statsCard}>
+          <Card.Content>
+            <Text style={styles.statsTitle}>Summary Statistics</Text>
+            
+            {stats && (
+              <>
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{stats.totalTransactions}</Text>
+                    <Text style={styles.statLabel}>Total Transactions</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: '#4CAF50' }]}>+{stats.stockAdded}</Text>
+                    <Text style={styles.statLabel}>Total Added</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: '#F44336' }]}>-{stats.stockRemoved}</Text>
+                    <Text style={styles.statLabel}>Total Removed</Text>
+                  </View>
                 </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: '#4CAF50' }]}>+{stats.stockAdded}</Text>
-                  <Text style={styles.statLabel}>Total Added</Text>
+                
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{stats.mostActiveUser.userName || 'N/A'}</Text>
+                    <Text style={styles.statLabel}>Most Active User</Text>
+                    <Text style={styles.statSublabel}>
+                      {stats.mostActiveUser.transactionCount} transactions
+                    </Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{stats.mostTrackedItem.itemName || 'N/A'}</Text>
+                    <Text style={styles.statLabel}>Most Updated Item</Text>
+                    <Text style={styles.statSublabel}>
+                      {stats.mostTrackedItem.transactionCount} updates
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: '#F44336' }]}>-{stats.stockRemoved}</Text>
-                  <Text style={styles.statLabel}>Total Removed</Text>
-                </View>
+              </>
+            )}
+            
+            {!stats && (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  {loading ? 'Loading statistics...' : 'No statistics available'}
+                </Text>
               </View>
-              
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.mostActiveUser.userName || 'N/A'}</Text>
-                  <Text style={styles.statLabel}>Most Active User</Text>
-                  <Text style={styles.statSublabel}>
-                    {stats.mostActiveUser.transactionCount} transactions
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{stats.mostTrackedItem.itemName || 'N/A'}</Text>
-                  <Text style={styles.statLabel}>Most Updated Item</Text>
-                  <Text style={styles.statSublabel}>
-                    {stats.mostTrackedItem.transactionCount} updates
-                  </Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
-        
+            )}
+          </Card.Content>
+        </Card>
+
         <Card style={styles.tableCard}>
           <Card.Content>
             <Text style={styles.tableTitle}>Transaction Details</Text>
@@ -325,13 +369,13 @@ export const ReportsScreen: React.FC = () => {
           </Card.Content>
         </Card>
       </ScrollView>
-      
+
       <FAB
         icon="filter"
         style={styles.fab}
         onPress={() => setShowFilters(true)}
       />
-      
+
       <Portal>
         <Modal
           visible={showFilters}
@@ -388,6 +432,13 @@ export const ReportsScreen: React.FC = () => {
                 style={styles.chip}
               >
                 Remove Only
+              </Chip>
+              <Chip
+                selected={filters.transactionType === 'delete'}
+                onPress={() => setFilters(prev => ({ ...prev, transactionType: 'delete' }))}
+                style={styles.chip}
+              >
+                Delete Only
               </Chip>
             </View>
             
@@ -448,38 +499,40 @@ export const ReportsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  exportButton: {
-    marginTop: 8,
-  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
   scrollView: {
     flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   filterDescription: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 16,
+  },
+  exportButton: {
+    marginLeft: 8,
   },
   statsCard: {
-    marginBottom: 16,
+    margin: 16,
+    marginBottom: 8,
   },
   statsTitle: {
     fontSize: 18,
@@ -488,12 +541,12 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     marginBottom: 16,
   },
   statItem: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
   },
   statValue: {
     fontSize: 20,
@@ -507,11 +560,12 @@ const styles = StyleSheet.create({
   },
   statSublabel: {
     fontSize: 10,
-    color: '#888',
+    color: '#999',
     textAlign: 'center',
   },
   tableCard: {
-    marginBottom: 80, // Space for FAB
+    margin: 16,
+    marginTop: 8,
   },
   tableTitle: {
     fontSize: 18,
@@ -519,36 +573,28 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   table: {
-    flex: 1,
+    backgroundColor: '#fff',
+  },
+  changeHeader: {
+    justifyContent: 'center',
+  },
+  changeColumn: {
+    justifyContent: 'center',
   },
   itemName: {
     fontSize: 14,
     fontWeight: '500',
   },
   userName: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  changeColumn: {
-    textAlign: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  changeHeader: {
-    alignSelf: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 14,
   },
   timestamp: {
-    fontSize: 11,
-    color: '#888',
+    fontSize: 12,
+    color: '#666',
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50,
+    paddingVertical: 32,
   },
   emptyText: {
     fontSize: 16,
@@ -564,7 +610,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     margin: 20,
     borderRadius: 8,
-    maxHeight: '80%',
   },
   modalContent: {
     padding: 20,
@@ -576,7 +621,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     marginBottom: 8,
     marginTop: 16,
   },
@@ -592,3 +637,6 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
 });
+
+
+

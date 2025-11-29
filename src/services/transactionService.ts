@@ -124,17 +124,21 @@ export const transactionService = {
     isNewItem?: boolean;
   } {
     const isNewItem = transaction.notes === 'Initial stock when creating item';
+    const isDeletion = transaction.transactionType === TransactionType.ITEM_DELETE;
     let action: string;
+    let quantity: string;
     
     if (isNewItem) {
       action = 'New Item';
+      quantity = `${Math.abs(transaction.quantityChange)} units (Initial)`;
+    } else if (isDeletion) {
+      action = 'Deleted';
+      quantity = 'Item Deleted';
     } else {
       action = transaction.transactionType === 'add' ? 'Added' : 'Removed';
+      quantity = `${Math.abs(transaction.quantityChange)} units`;
     }
     
-    const quantity = isNewItem 
-      ? `${Math.abs(transaction.quantityChange)} units (Initial)`
-      : `${Math.abs(transaction.quantityChange)} units`;
     const timestamp = new Date(transaction.timestamp).toLocaleString();
     
     return {
