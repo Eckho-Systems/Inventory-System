@@ -242,6 +242,42 @@ export class UserModel {
   }
 
   static async update(userData: UpdateUserInput): Promise<User | null> {
+    // For web platform, update localStorage
+    if (Platform.OS === 'web') {
+      // Check regular user
+      const userStr = localStorage.getItem(`user_${userData.id}`);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        
+        if (userData.name !== undefined) user.name = userData.name;
+        if (userData.pin !== undefined) user.pin = userData.pin;
+        if (userData.role !== undefined) user.role = userData.role;
+        if (userData.isActive !== undefined) user.isActive = userData.isActive;
+        
+        user.updatedAt = Date.now();
+        localStorage.setItem(`user_${userData.id}`, JSON.stringify(user));
+        return user;
+      }
+      
+      // Check mock user
+      const mockUserStr = localStorage.getItem('mockUser');
+      if (mockUserStr) {
+        const mockUser = JSON.parse(mockUserStr);
+        if (mockUser.id === userData.id) {
+          if (userData.name !== undefined) mockUser.name = userData.name;
+          if (userData.pin !== undefined) mockUser.pin = userData.pin;
+          if (userData.role !== undefined) mockUser.role = userData.role;
+          if (userData.isActive !== undefined) mockUser.isActive = userData.isActive;
+          
+          mockUser.updatedAt = Date.now();
+          localStorage.setItem('mockUser', JSON.stringify(mockUser));
+          return mockUser;
+        }
+      }
+      
+      return null;
+    }
+
     const db = await getDatabase();
     const updates: string[] = [];
     const values: any[] = [];
@@ -280,6 +316,37 @@ export class UserModel {
   }
 
   static async getAll(): Promise<User[]> {
+    // For web platform, check localStorage
+    if (Platform.OS === 'web') {
+      const users: User[] = [];
+      
+      // Check mock user first
+      const mockUserStr = localStorage.getItem('mockUser');
+      if (mockUserStr) {
+        const mockUser = JSON.parse(mockUserStr);
+        if (mockUser.isActive) {
+          users.push(mockUser);
+        }
+      }
+      
+      // Check other users
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('user_')) {
+          const userStr = localStorage.getItem(key);
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.isActive) {
+              users.push(user);
+            }
+          }
+        }
+      }
+      
+      // Sort by created_at DESC
+      return users.sort((a, b) => b.createdAt - a.createdAt);
+    }
+
     const db = await getDatabase();
     const result = await db.getAllAsync(
       'SELECT * FROM users WHERE is_active = 1 ORDER BY created_at DESC'
@@ -289,10 +356,69 @@ export class UserModel {
   }
 
   static async deactivate(id: string): Promise<boolean> {
+    // For web platform, update localStorage
+    if (Platform.OS === 'web') {
+      // Check regular user
+      const userStr = localStorage.getItem(`user_${id}`);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        user.isActive = false;
+        user.updatedAt = Date.now();
+        localStorage.setItem(`user_${id}`, JSON.stringify(user));
+        return true;
+      }
+      
+      // Check mock user
+      const mockUserStr = localStorage.getItem('mockUser');
+      if (mockUserStr) {
+        const mockUser = JSON.parse(mockUserStr);
+        if (mockUser.id === id) {
+          mockUser.isActive = false;
+          mockUser.updatedAt = Date.now();
+          localStorage.setItem('mockUser', JSON.stringify(mockUser));
+          return true;
+        }
+      }
+      
+      return false;
+    }
+
     const db = await getDatabase();
     const result = await db.runAsync(
       'UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?',
       [Date.now(), id]
+    );
+    
+    return result.rowsAffected > 0;
+  }
+
+  static async delete(id: string): Promise<boolean> {
+    // For web platform, remove from localStorage
+    if (Platform.OS === 'web') {
+      // Check regular user
+      const userStr = localStorage.getItem(`user_${id}`);
+      if (userStr) {
+        localStorage.removeItem(`user_${id}`);
+        return true;
+      }
+      
+      // Check mock user
+      const mockUserStr = localStorage.getItem('mockUser');
+      if (mockUserStr) {
+        const mockUser = JSON.parse(mockUserStr);
+        if (mockUser.id === id) {
+          localStorage.removeItem('mockUser');
+          return true;
+        }
+      }
+      
+      return false;
+    }
+
+    const db = await getDatabase();
+    const result = await db.runAsync(
+      'DELETE FROM users WHERE id = ?',
+      [id]
     );
     
     return result.rowsAffected > 0;

@@ -1,6 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { StyleSheet } from 'react-native';
 import { Permission, usePermissions } from '../../utils';
 
 interface PermissionGuardProps {
@@ -28,14 +27,7 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   };
   
   if (!hasRequiredPermission()) {
-    return fallback || (
-      <View style={styles.container}>
-        <Text style={styles.text}>Access Denied</Text>
-        <Text style={styles.subtext}>
-          You don&apos;t have permission to access this feature.
-        </Text>
-      </View>
-    );
+    return fallback || null;
   }
   
   return <>{children}</>;

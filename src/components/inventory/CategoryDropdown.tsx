@@ -7,9 +7,10 @@ import {
     Text,
 } from 'react-native-paper';
 import { CategoryService } from '../../services/categoryService';
+const { eventEmitter } = require('../../utils/eventEmitter');
 
 interface CategoryDropdownProps {
-  selectedCategory?: string;
+  selectedCategory?: string | null;
   onCategorySelect: (category: string) => void;
   error?: boolean;
 }
@@ -25,6 +26,15 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
 
   useEffect(() => {
     loadCategories();
+  }, []);
+
+  // Listen for category changes and refresh automatically
+  useEffect(() => {
+    const unsubscribe = eventEmitter.on('categoriesChanged', () => {
+      loadCategories();
+    });
+
+    return unsubscribe;
   }, []);
 
   const loadCategories = async () => {
@@ -43,7 +53,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
     setVisible(false);
   };
 
-  const displayText = selectedCategory || 'Select a category';
+  const displayText = selectedCategory || 'All';
 
   return (
     <View style={styles.container}>
@@ -72,16 +82,24 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
             <Text>No categories available</Text>
           </View>
         ) : (
-          categories.map((category, index) => (
-            <View key={category}>
-              <Menu.Item
-                onPress={() => handleSelectCategory(category)}
-                title={category}
-                style={selectedCategory === category && styles.selectedItem}
-              />
-              {index < categories.length - 1 && <Divider />}
-            </View>
-          ))
+          <View>
+            <Menu.Item
+              onPress={() => handleSelectCategory('All')}
+              title="All"
+              style={!selectedCategory && styles.selectedItem}
+            />
+            <Divider />
+            {categories.map((category, index) => (
+              <View key={category}>
+                <Menu.Item
+                  onPress={() => handleSelectCategory(category)}
+                  title={category}
+                  style={selectedCategory === category && styles.selectedItem}
+                />
+                {index < categories.length - 1 && <Divider />}
+              </View>
+            ))}
+          </View>
         )}
       </Menu>
     </View>

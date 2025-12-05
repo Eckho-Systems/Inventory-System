@@ -10,12 +10,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Button, Chip, Portal, Searchbar } from 'react-native-paper';
-import { useAuth } from '../../stores';
+import { Button, Portal, Searchbar } from 'react-native-paper';
+import { useAuthStore } from '../../stores/authStore';
 import { useInventory } from '../../stores/inventoryStore';
 import { Item } from '../../types/item';
 import { PermissionGuard } from '../auth/PermissionGuard';
 import { AddItemModal } from './AddItemModal';
+import { CategoryDropdown } from './CategoryDropdown';
 import { StockModal } from './StockModal';
 
 interface Props {
@@ -42,7 +43,7 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
     loadCategories,
     refreshItems
   } = useInventory();
-  const { user } = useAuth();
+  const { user } = useAuthStore();
 
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
@@ -71,6 +72,15 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
     setStockModalType('remove');
     setStockModalVisible(true);
   };
+
+  const Header = () => (
+    <View style={styles.header}>
+      <View style={styles.headerLeft}>
+        <Text style={styles.headerTitle}>Inventory</Text>
+        <Text style={styles.userText}>Welcome, {user?.name}</Text>
+      </View>
+    </View>
+  );
 
   const renderItem = ({ item }: { item: Item }) => (
     <TouchableOpacity
@@ -131,6 +141,7 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <Header />
       <ScrollView style={styles.searchContainer}>
         <Searchbar
           placeholder="Search items..."
@@ -139,30 +150,12 @@ export const StockListScreen: React.FC<Props> = ({ navigation }) => {
           style={styles.searchBar}
         />
         
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-          contentContainerStyle={styles.categoryContainer}
-        >
-          <Chip
-            selected={!selectedCategory}
-            onPress={() => setSelectedCategory(null)}
-            style={styles.categoryChip}
-          >
-            All
-          </Chip>
-          {categoriesWithAll.slice(1).map((category) => (
-            <Chip
-              key={category}
-              selected={selectedCategory === category}
-              onPress={() => setSelectedCategory(category)}
-              style={styles.categoryChip}
-            >
-              {category}
-            </Chip>
-          ))}
-        </ScrollView>
+        <View style={styles.categoryDropdownContainer}>
+          <CategoryDropdown
+            selectedCategory={selectedCategory || ''}
+            onCategorySelect={(category) => setSelectedCategory(category === 'All' ? null : category)}
+          />
+        </View>
 
         <View style={styles.sortContainer}>
           <Button
@@ -238,6 +231,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  header: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  userText: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.8,
+    marginTop: 2,
+  },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -246,19 +263,13 @@ const styles = StyleSheet.create({
   searchContainer: {
     backgroundColor: '#f5f5f5',
     padding: 16,
-    maxHeight: 200,
+    maxHeight: 220,
   },
   searchBar: {
     marginBottom: 12,
   },
-  categoryScroll: {
+  categoryDropdownContainer: {
     marginBottom: 12,
-  },
-  categoryContainer: {
-    paddingRight: 16,
-  },
-  categoryChip: {
-    marginRight: 8,
   },
   sortContainer: {
     flexDirection: 'row',

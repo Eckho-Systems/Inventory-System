@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "robertosinventoryapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
@@ -22,12 +22,9 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png",
-      "bundler": "metro",
-      "metro": {
-        "config": "metro.config.js"
-      }
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",

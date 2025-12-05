@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { itemService } from '../services';
 import { CreateItemInput, Item, StockAdjustmentInput, UpdateItemInput } from '../types/item';
 import { useAuthStore } from './authStore';
+const { eventEmitter } = require('../utils/eventEmitter');
 
 interface InventoryState {
   items: Item[];
@@ -248,8 +249,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     
     // Filter by search query
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+        item.name.toLowerCase().includes(query) ||
+        item.category.toLowerCase().includes(query)
       );
     }
     
@@ -322,6 +325,14 @@ export const useInventory = () => {
     getItemById,
     getLowStockItems,
   } = useInventoryStore.getState();
+
+  // Initialize event listeners on component mount
+  React.useEffect(() => {
+    const unsubscribe = eventEmitter.on('categoriesChanged', () => {
+      loadCategories();
+    });
+    return unsubscribe;
+  }, [loadCategories]);
   
   // Compute filtered items reactively
   const filteredItems = React.useMemo(() => {
@@ -329,8 +340,10 @@ export const useInventory = () => {
     
     // Filter by search query
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+        item.name.toLowerCase().includes(query) ||
+        item.category.toLowerCase().includes(query)
       );
     }
     

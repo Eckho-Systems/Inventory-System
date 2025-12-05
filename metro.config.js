@@ -8,9 +8,6 @@ config.resolver.assetExts.push('wasm');
 // Configure resolver to properly handle WASM files
 config.resolver.sourceExts = config.resolver.sourceExts.filter(ext => ext !== 'wasm');
 
-// Add WASM to asset extensions but keep it out of source extensions
-config.resolver.assetExts = [...config.resolver.assetExts, 'wasm'];
-
 // Configure transformer for web compatibility and ES modules
 config.transformer = {
   ...config.transformer,
@@ -20,6 +17,24 @@ config.transformer = {
       inlineRequires: true,
     },
   }),
+  minifierConfig: {
+    keep_fnames: true,
+    mangle: false,
+  },
+};
+
+// Configure server for better hot reloading
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (middleware) => {
+    return (req, res, next) => {
+      // Add headers to prevent caching issues
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return middleware(req, res, next);
+    };
+  },
 };
 
 // Configure resolver for ES modules

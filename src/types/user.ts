@@ -19,6 +19,7 @@ export interface User {
 export interface CreateUserInput {
   username: string;
   pin: string; // Will be hashed before saving
+  confirmPin?: string; // UI validation only
   name: string;
   role: UserRole;
 }

@@ -1,6 +1,7 @@
 import { CategoryModel } from '../database/models/Category';
 import { useAuthStore } from '../stores/authStore';
 import { Category, CreateCategoryInput, UpdateCategoryInput } from '../types/category';
+const { eventEmitter } = require('../utils/eventEmitter');
 
 export class CategoryService {
   static async createCategory(categoryData: CreateCategoryInput): Promise<Category> {
@@ -14,7 +15,10 @@ export class CategoryService {
       throw new Error('Only owners and managers can create categories');
     }
 
-    return await CategoryModel.create(categoryData, currentUser.id);
+    const category = await CategoryModel.create(categoryData, currentUser.id);
+    // Emit event to notify listeners that categories have changed
+    eventEmitter.emit('categoriesChanged', { action: 'created', category });
+    return category;
   }
 
   static async getAllCategories(): Promise<Category[]> {
@@ -40,7 +44,12 @@ export class CategoryService {
       throw new Error('Only owners and managers can update categories');
     }
 
-    return await CategoryModel.update(categoryData);
+    const category = await CategoryModel.update(categoryData);
+    if (category) {
+      // Emit event to notify listeners that categories have changed
+      eventEmitter.emit('categoriesChanged', { action: 'updated', category });
+    }
+    return category;
   }
 
   static async deleteCategory(id: string): Promise<boolean> {
@@ -54,7 +63,12 @@ export class CategoryService {
       throw new Error('Only owners and managers can delete categories');
     }
 
-    return await CategoryModel.delete(id);
+    const success = await CategoryModel.delete(id);
+    if (success) {
+      // Emit event to notify listeners that categories have changed
+      eventEmitter.emit('categoriesChanged', { action: 'deleted', categoryId: id });
+    }
+    return success;
   }
 
   static async getCategoryNames(): Promise<string[]> {

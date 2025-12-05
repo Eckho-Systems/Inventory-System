@@ -94,6 +94,29 @@ export const userService = {
     }
   },
 
+  async delete(id: string): Promise<boolean> {
+    try {
+      return await UserModel.delete(id);
+    } catch (error) {
+      console.error('Delete user error:', error);
+      throw error;
+    }
+  },
+
+  // Helper method to check if a user can delete another user
+  canDeleteUser(creatorRole: string, targetRole: string): boolean {
+    switch (creatorRole) {
+      case 'staff':
+        return false; // Staff cannot delete users
+      case 'manager':
+        return targetRole === 'staff'; // Managers can only delete staff
+      case 'owner':
+        return ['staff', 'manager', 'owner'].includes(targetRole); // Owners can delete anyone
+      default:
+        return false;
+    }
+  },
+
   // Helper method to check if a user can create another user with a specific role
   canCreateUser(creatorRole: string, targetRole: string): boolean {
     switch (creatorRole) {

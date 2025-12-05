@@ -1,35 +1,53 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
 import {
-    Button,
-    Card,
-    Chip,
-    DataTable,
-    Modal,
-    Portal,
-    Text,
-    TextInput,
+  Button,
+  Card,
+  Chip,
+  DataTable,
+  Modal,
+  Portal,
+  Text,
+  TextInput,
 } from 'react-native-paper';
 import { PermissionGuard } from '../../src/components/auth/PermissionGuard';
 import { userService } from '../../src/services/userService';
 import { useAuth } from '../../src/stores';
-import { CreateUserInput, User, UserRole } from '../../src/types/user';
+import { CreateUserInput, UpdateUserInput, User, UserRole } from '../../src/types/user';
 import { PERMISSIONS } from '../../src/utils/permissions';
+
+interface EditUserForm {
+  id: string;
+  name: string;
+  pin: string;
+  confirmPin: string;
+  role: UserRole;
+}
 
 export default function ManageUsersScreen() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState<CreateUserInput>({
     username: '',
     pin: '',
     name: '',
+    role: UserRole.STAFF,
+    confirmPin: '',
+  });
+  const [editUserForm, setEditUserForm] = useState<EditUserForm>({
+    id: '',
+    name: '',
+    pin: '',
+    confirmPin: '',
     role: UserRole.STAFF,
   });
 
@@ -50,8 +68,23 @@ export default function ManageUsersScreen() {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.username.trim() || !newUser.pin.trim()) {
+    if (!newUser.username.trim() || !newUser.name.trim() || !newUser.pin.trim()) {
       Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (!newUser.confirmPin?.trim()) {
+      Alert.alert('Error', 'Please confirm the PIN');
+      return;
+    }
+
+    if (newUser.pin !== newUser.confirmPin) {
+      Alert.alert('Error', 'PIN and confirm PIN do not match ');
+      return; 
+    }
+
+    if (newUser.pin.length !== 4) {
+      Alert.alert('Error', 'PIN must be exactly 4 digits');
       return;
     }
 
@@ -59,7 +92,7 @@ export default function ManageUsersScreen() {
       const success = await userService.create(newUser);
       if (success) {
         setAddModalVisible(false);
-        setNewUser({ username: '', pin: '', name: '', role: UserRole.STAFF });
+        setNewUser({ username: '', pin: '', name: '', role: UserRole.STAFF, confirmPin: '' });
         loadUsers();
         Alert.alert('Success', 'User created successfully');
       } else {
@@ -100,6 +133,115 @@ export default function ManageUsersScreen() {
         },
       ]
     );
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserForm({
+      id: user.id,
+      name: user.name,
+      pin: '', // Don't pre-fill PIN for security
+      confirmPin: '', // Don't pre-fill PIN for security
+      role: user.role,
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+
+    if (!editUserForm.name?.trim()) {
+      Alert.alert('Error', 'Name is required');
+      return;
+    }
+
+    // Validate PIN if user wants to change it
+    if (editUserForm.pin?.trim()) {
+      if (!editUserForm.confirmPin?.trim()) {
+        Alert.alert('Error', 'Please confirm the new PIN');
+        return;
+      }
+      
+      if (editUserForm.pin !== editUserForm.confirmPin) {
+        Alert.alert('Error', 'PIN and confirm PIN do not match');
+        return;
+      }
+      
+      if (editUserForm.pin.length !== 4) {
+        Alert.alert('Error', 'PIN must be exactly 4 digits');
+        return;
+      }
+    }
+
+    try {
+      const updateData: UpdateUserInput = {
+        id: editingUser.id,
+        name: editUserForm.name,
+        role: editUserForm.role,
+      };
+
+      // Only include PIN if it's provided (user wants to change it)
+      if (editUserForm.pin?.trim()) {
+        updateData.pin = editUserForm.pin;
+      }
+
+      const updatedUser = await userService.update(updateData);
+      if (updatedUser) {
+        setEditModalVisible(false);
+        setEditingUser(null);
+        setEditUserForm({ id: '', name: '', pin: '', confirmPin: '', role: UserRole.STAFF });
+        loadUsers();
+        Alert.alert('Success', 'User updated successfully');
+      } else {
+        Alert.alert('Error', 'Failed to update user');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update user');
+    }
+  };
+
+  const getAvailableRoles = () => {
+    if (!currentUser) return [];
+    
+    switch (currentUser.role) {
+      case UserRole.MANAGER:
+        return [UserRole.STAFF];
+      case UserRole.OWNER:
+        return [UserRole.STAFF, UserRole.MANAGER, UserRole.OWNER];
+      default:
+        return [];
+    }
+  };
+
+  const canDeleteUser = (user: User) => {
+    if (!currentUser) return false;
+    if (user.id === currentUser?.id) return false; // Can't delete own account
+    
+    return userService.canDeleteUser(currentUser.role, user.role);
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    // Use a simpler confirmation approach
+    if (window.confirm(`Are you sure you want to permanently delete ${user.username}? This action cannot be undone.`)) {
+      try {
+        const success = await userService.delete(user.id);
+        if (success) {
+          loadUsers();
+          Alert.alert('Success', 'User deleted successfully');
+        } else {
+          Alert.alert('Error', 'Failed to delete user');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to delete user');
+      }
+    }
+  };
+
+  const canEditUser = (user: User) => {
+    if (!currentUser) return false;
+    if (user.id === currentUser?.id) return false; // Can't edit own role
+    
+    return userService.canCreateUser(currentUser.role, user.role);
   };
 
   const getRoleColor = (role: string) => {
@@ -180,17 +322,40 @@ export default function ManageUsersScreen() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </DataTable.Cell>
                       <DataTable.Cell>
-                        {user.isActive && user.id !== currentUser?.id && (
-                          <Button
-                            mode="outlined"
-                            compact
-                            onPress={() => handleDeactivateUser(user)}
-                            style={styles.deactivateButton}
-                            textColor="#f44336"
-                          >
-                            Deactivate
-                          </Button>
-                        )}
+                        <View style={styles.actionButtons}>
+                          {canEditUser(user) && (
+                            <Button
+                              mode="outlined"
+                              compact
+                              onPress={() => handleEditUser(user)}
+                              style={[styles.actionButton, styles.editButton]}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          {canDeleteUser(user) && (
+                            <Button
+                              mode="outlined"
+                              compact
+                              onPress={() => handleDeleteUser(user)}
+                              style={[styles.actionButton, styles.deleteButton]}
+                              textColor="#d32f2f"
+                            >
+                              Delete
+                            </Button>
+                          )}
+                          {user.isActive && user.id !== currentUser?.id && (
+                            <Button
+                              mode="outlined"
+                              compact
+                              onPress={() => handleDeactivateUser(user)}
+                              style={[styles.actionButton, styles.deactivateButton]}
+                              textColor="#f44336"
+                            >
+                              Deactivate
+                            </Button>
+                          )}
+                        </View>
                       </DataTable.Cell>
                     </DataTable.Row>
                   ))}
@@ -219,6 +384,14 @@ export default function ManageUsersScreen() {
                 />
 
                 <TextInput
+                  label="Name"
+                  value={newUser.name}
+                  onChangeText={(text) => setNewUser({ ...newUser, name: text })}
+                  mode="outlined"
+                  style={styles.input}
+                />
+
+                <TextInput
                   label="PIN (4 digits)"
                   value={newUser.pin}
                   onChangeText={(text) => setNewUser({ ...newUser, pin: text })}
@@ -229,30 +402,30 @@ export default function ManageUsersScreen() {
                   style={styles.input}
                 />
 
+                <TextInput
+                  label="Confirm PIN"
+                  value={newUser.confirmPin || ''}
+                  onChangeText={(text) => setNewUser({ ...newUser, confirmPin: text })}
+                  mode="outlined"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  secureTextEntry
+                  style={styles.input}
+                />
+
                 <View style={styles.roleSelection}>
                   <Text style={styles.label}>Role:</Text>
                   <View style={styles.roleButtons}>
-                    <Chip
-                      selected={newUser.role === UserRole.STAFF}
-                      onPress={() => setNewUser({ ...newUser, role: UserRole.STAFF })}
-                      style={styles.roleChip}
-                    >
-                      Staff
-                    </Chip>
-                    <Chip
-                      selected={newUser.role === UserRole.MANAGER}
-                      onPress={() => setNewUser({ ...newUser, role: UserRole.MANAGER })}
-                      style={styles.roleChip}
-                    >
-                      Manager
-                    </Chip>
-                    <Chip
-                      selected={newUser.role === UserRole.OWNER}
-                      onPress={() => setNewUser({ ...newUser, role: UserRole.OWNER })}
-                      style={styles.roleChip}
-                    >
-                      Owner
-                    </Chip>
+                    {getAvailableRoles().map((role) => (
+                      <Chip
+                        key={role}
+                        selected={newUser.role === role}
+                        onPress={() => setNewUser({ ...newUser, role })}
+                        style={styles.roleChip}
+                      >
+                        {getRoleDisplay(role)}
+                      </Chip>
+                    ))}
                   </View>
                 </View>
 
@@ -268,9 +441,109 @@ export default function ManageUsersScreen() {
                     mode="contained"
                     onPress={handleAddUser}
                     style={styles.confirmButton}
-                    disabled={!newUser.username.trim() || !newUser.pin.trim()}
+                    disabled={
+                      !newUser.username.trim() || 
+                      !newUser.name.trim() || 
+                      !newUser.pin.trim() || 
+                      !newUser.confirmPin?.trim() ||
+                      newUser.pin !== newUser.confirmPin
+                    }
                   >
                     Add User
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
+          </Modal>
+        </Portal>
+
+        <Portal>
+          <Modal
+            visible={editModalVisible}
+            onDismiss={() => {
+              setEditModalVisible(false);
+              setEditingUser(null);
+              setEditUserForm({ id: '', name: '', pin: '', confirmPin: '', role: UserRole.STAFF });
+            }}
+            contentContainerStyle={styles.modalContainer}
+          >
+            <Card style={styles.modalCard}>
+              <Card.Content>
+                <Text style={styles.modalTitle}>Edit User</Text>
+
+                <TextInput
+                  label="Username"
+                  value={editingUser?.username || ''}
+                  disabled
+                  mode="outlined"
+                  style={styles.input}
+                />
+
+                <TextInput
+                  label="Name"
+                  value={editUserForm.name}
+                  onChangeText={(text) => setEditUserForm({ ...editUserForm, name: text })}
+                  mode="outlined"
+                  style={styles.input}
+                />
+
+                <TextInput
+                  label="New PIN (4 digits, leave empty to keep current)"
+                  value={editUserForm.pin}
+                  onChangeText={(text) => setEditUserForm({ ...editUserForm, pin: text })}
+                  mode="outlined"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  secureTextEntry
+                  style={styles.input}
+                />
+
+                <TextInput
+                  label="Confirm New PIN"
+                  value={editUserForm.confirmPin}
+                  onChangeText={(text) => setEditUserForm({ ...editUserForm, confirmPin: text })}
+                  mode="outlined"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  secureTextEntry
+                  style={styles.input}
+                />
+
+                <View style={styles.roleSelection}>
+                  <Text style={styles.label}>Role:</Text>
+                  <View style={styles.roleButtons}>
+                    {getAvailableRoles().map((role) => (
+                      <Chip
+                        key={role}
+                        selected={editUserForm.role === role}
+                        onPress={() => setEditUserForm({ ...editUserForm, role })}
+                        style={styles.roleChip}
+                      >
+                        {getRoleDisplay(role)}
+                      </Chip>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => {
+                      setEditModalVisible(false);
+                      setEditingUser(null);
+                      setEditUserForm({ id: '', name: '', pin: '', confirmPin: '', role: UserRole.STAFF });
+                    }}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleUpdateUser}
+                    style={styles.confirmButton}
+                    disabled={!editUserForm.name?.trim()}
+                  >
+                    Update User
                   </Button>
                 </View>
               </Card.Content>
@@ -336,6 +609,19 @@ const styles = StyleSheet.create({
   },
   deactivateButton: {
     borderColor: '#f44336',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  actionButton: {
+    minWidth: 60,
+  },
+  editButton: {
+    borderColor: '#007AFF',
+  },
+  deleteButton: {
+    borderColor: '#d32f2f',
   },
   modalContainer: {
     justifyContent: 'center',

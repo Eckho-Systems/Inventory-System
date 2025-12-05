@@ -1,6 +1,8 @@
+import { Platform } from 'react-native';
 import { TransactionModel } from '../database/models/Transaction';
 import { Transaction, TransactionFilter, TransactionStats, TransactionType } from '../types/transaction';
 import { UserRole } from '../types/user';
+import { downloadCSV, exportTransactionsToCSV, shareCSV } from '../utils/csvExport';
 import { eventEmitter } from '../utils/eventEmitter';
 
 export const transactionService = {
@@ -151,5 +153,41 @@ export const transactionService = {
       notes: transaction.notes || undefined,
       isNewItem,
     };
-  }
+  },
+
+  // Export transactions to CSV
+  async exportTransactions(filter?: TransactionFilter): Promise<string> {
+    try {
+      const transactions = await this.getAll(filter);
+      const csvContent = exportTransactionsToCSV(transactions, {
+        includeHeaders: true,
+        dateFormat: 'long'
+      });
+      return csvContent;
+    } catch (error) {
+      console.error('Export transactions error:', error);
+      throw error;
+    }
+  },
+
+  // Export and download/share transactions
+  async exportAndShareTransactions(
+    filter?: TransactionFilter,
+    filename?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const csvContent = await this.exportTransactions(filter);
+      const defaultFilename = filename || `transactions_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      if (Platform.OS === 'web') {
+        downloadCSV(csvContent, defaultFilename);
+        return { success: true, message: 'CSV file downloaded successfully' };
+      } else {
+        return await shareCSV(csvContent, defaultFilename);
+      }
+    } catch (error) {
+      console.error('Export and share transactions error:', error);
+      return { success: false, message: 'Failed to export transactions' };
+    }
+  },
 };

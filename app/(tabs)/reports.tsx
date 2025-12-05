@@ -4,17 +4,20 @@ import React, { useCallback, useEffect, useState } from 'react';
 import ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import {
-  Card,
-  Chip,
-  DataTable,
-  Text
+    Button,
+    Card,
+    Chip,
+    DataTable,
+    Modal,
+    Portal,
+    Text
 } from 'react-native-paper';
 import { PermissionGuard } from '../../src/components/auth/PermissionGuard';
 import { useRealTimeUpdates } from '../../src/hooks/useRealTimeUpdates';
@@ -52,6 +55,12 @@ export default function ReportsScreen() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<{visible: boolean; message: string; isError: boolean}>({
+    visible: false,
+    message: '',
+    isError: false
+  });
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'start' | 'end' | 'month'>('start');
@@ -200,6 +209,78 @@ export default function ReportsScreen() {
 
   const stats = getSummaryStats();
   const filteredTransactions = getFilteredTransactions();
+
+  const handleExportTransactions = async () => {
+    setExporting(true);
+    try {
+      // Create filter object based on current filters
+      const exportFilter: any = {};
+      
+      if (filters.transactionType !== 'all') {
+        exportFilter.type = filters.transactionType;
+      }
+      
+      // Handle date filtering
+      let startDate: Date;
+      let endDate: Date = new Date();
+      
+      if (filters.timePeriod === 'custom' && filters.startDate && filters.endDate) {
+        startDate = filters.startDate;
+        endDate = filters.endDate;
+        exportFilter.startDate = startDate.getTime();
+        exportFilter.endDate = endDate.getTime();
+      } else if (filters.timePeriod === 'monthPicker' && filters.selectedMonth) {
+        startDate = new Date(filters.selectedMonth.getFullYear(), filters.selectedMonth.getMonth(), 1);
+        endDate = new Date(filters.selectedMonth.getFullYear(), filters.selectedMonth.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        exportFilter.startDate = startDate.getTime();
+        exportFilter.endDate = endDate.getTime();
+      } else {
+        switch (filters.timePeriod) {
+          case 'daily':
+            startDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+            break;
+          case 'weekly':
+            startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case 'monthly':
+            startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            break;
+          default:
+            startDate = new Date(0);
+        }
+        exportFilter.startDate = startDate.getTime();
+        exportFilter.endDate = endDate.getTime();
+      }
+
+      // Generate filename based on filters
+      const periodLabel = filters.timePeriod === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate.toLocaleDateString()}_to_${filters.endDate.toLocaleDateString()}`
+        : filters.timePeriod === 'monthPicker' && filters.selectedMonth
+        ? `${filters.selectedMonth.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}`
+        : filters.timePeriod;
+      
+      const filename = `transactions_${periodLabel}_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      const result = await transactionService.exportAndShareTransactions(exportFilter, filename);
+      
+      setExportStatus({
+        visible: true,
+        message: result.message,
+        isError: !result.success
+      });
+      
+    } catch (error) {
+      console.error('Export failed:', error);
+      setExportStatus({
+        visible: true,
+        message: 'Export failed. Please try again.',
+        isError: true
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <PermissionGuard permissions={[PERMISSIONS.VIEW_REPORTS]}>
@@ -378,6 +459,19 @@ export default function ReportsScreen() {
                   <Text style={styles.statLabel}>Total Removed</Text>
                 </View>
               </View>
+              
+              <View style={styles.exportButtonContainer}>
+                <Button
+                  mode="contained"
+                  onPress={handleExportTransactions}
+                  loading={exporting}
+                  disabled={exporting || filteredTransactions.length === 0}
+                  style={styles.exportButton}
+                  icon="download"
+                >
+                  {exporting ? 'Exporting...' : 'Export to CSV'}
+                </Button>
+              </View>
             </Card.Content>
           </Card>
 
@@ -398,8 +492,12 @@ export default function ReportsScreen() {
 
                   {filteredTransactions.slice(0, 50).map((transaction) => {
                     const isNewItem = transaction.notes === 'Initial stock when creating item';
+                    const isItemRemoved = transaction.quantityChange === 0;
                     return (
-                      <DataTable.Row key={transaction.id} style={isNewItem ? styles.newItemRow : undefined}>
+                      <DataTable.Row key={transaction.id} style={[
+                        isNewItem ? styles.newItemRow : undefined,
+                        isItemRemoved ? styles.itemRemovedRow : undefined
+                      ]}>
                         <DataTable.Cell>
                           <View style={{ alignItems: 'center', flex: 1 }}>
                             <Text style={styles.itemName}>{transaction.itemName}</Text>
@@ -413,9 +511,11 @@ export default function ReportsScreen() {
                             <Text style={[
                               styles.quantity,
                               isNewItem ? styles.newItemQuantity : 
-                              (transaction.quantityChange > 0 ? styles.addition : styles.removal)
+                              (transaction.quantityChange > 0 ? styles.addition : 
+                               transaction.quantityChange === 0 ? styles.itemRemoved : styles.removal)
                             ]}>
-                              {transaction.quantityChange > 0 ? '+' : ''}{Math.abs(transaction.quantityChange)}
+                              {transaction.quantityChange === 0 ? 'item removed' : 
+                               (transaction.quantityChange > 0 ? '+' : '') + Math.abs(transaction.quantityChange)}
                             </Text>
                           </View>
                         </DataTable.Cell>
@@ -428,7 +528,10 @@ export default function ReportsScreen() {
                         </DataTable.Cell>
                         <DataTable.Cell>
                           <View style={{ alignItems: 'center', flex: 1 }}>
-                            <Text style={isNewItem ? styles.newItemTime : styles.timestamp}>
+                            <Text style={[
+                              isNewItem ? styles.newItemTime : 
+                              isItemRemoved ? styles.itemRemovedTime : styles.timestamp
+                            ]}>
                               {new Date(transaction.timestamp).toLocaleString()}
                             </Text>
                           </View>
@@ -509,6 +612,33 @@ export default function ReportsScreen() {
             />
           )
         )}
+        
+        <Portal>
+          <Modal
+            visible={exportStatus.visible}
+            onDismiss={() => setExportStatus({ ...exportStatus, visible: false })}
+            contentContainerStyle={styles.modalContainer}
+          >
+            <View style={styles.modalContent}>
+              <Text style={[
+                styles.modalTitle,
+                exportStatus.isError ? styles.modalTitleError : styles.modalTitleSuccess
+              ]}>
+                {exportStatus.isError ? 'Export Failed' : 'Export Successful'}
+              </Text>
+              <Text style={styles.modalMessage}>
+                {exportStatus.message}
+              </Text>
+              <Button
+                mode="contained"
+                onPress={() => setExportStatus({ ...exportStatus, visible: false })}
+                style={styles.modalButton}
+              >
+                OK
+              </Button>
+            </View>
+          </Modal>
+        </Portal>
       </View>
     </PermissionGuard>
   );
@@ -586,6 +716,13 @@ const styles = StyleSheet.create({
   removal: {
     color: '#f44336',
   },
+  itemRemoved: {
+    color: '#d32f2f',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontWeight: 'bold',
+  },
   emptyText: {
     textAlign: 'center',
     color: '#666',
@@ -599,6 +736,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a3a3a',
     borderLeftWidth: 3,
     borderLeftColor: '#4CAF50',
+  },
+  itemRemovedRow: {
+    backgroundColor: '#3a3a3a',
+    borderLeftWidth: 3,
+    borderLeftColor: '#d32f2f',
   },
   newItemBadge: {
     fontSize: 10,
@@ -632,6 +774,11 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     color: '#888',
+    fontWeight: '600',
+  },
+  itemRemovedTime: {
+    fontSize: 12,
+    color: '#d32f2f',
     fontWeight: '600',
   },
   dateRangeRow: {
@@ -714,5 +861,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     textAlign: 'center',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    margin: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalContent: {
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalTitleSuccess: {
+    color: '#4CAF50',
+  },
+  modalTitleError: {
+    color: '#F44336',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  modalButton: {
+    minWidth: 120,
+  },
+  exportButtonContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  exportButton: {
+    minWidth: 150,
   },
 });

@@ -328,7 +328,7 @@ export const ItemDetailScreen: React.FC<ItemDetailScreenProps> = ({
           transparent={true}
         >
           <View style={styles.deleteModalOverlay}>
-            <View style={styles.deleteModalContent}>
+            <View style={styles.deleteModalContent} nativeID="delete-modal-content">
               <Text style={styles.deleteModalTitle}>Delete Item</Text>
               <Text style={styles.deleteModalText}>
                 Are you sure you want to delete "{item?.name}"? This action cannot be undone and will remove:

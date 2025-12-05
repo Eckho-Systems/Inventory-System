@@ -12,8 +12,10 @@ module.exports = function(api) {
         corejs: false,
         helpers: true,
         regenerator: true,
-        useESModules: false, // Disable ES modules to avoid import.meta issues
+        useESModules: true, // Enable ES modules for import.meta support
       }],
+      // Required for react-native-reanimated
+      'react-native-reanimated/plugin',
     ],
     env: {
       web: {
@@ -25,8 +27,10 @@ module.exports = function(api) {
             corejs: false,
             helpers: true,
             regenerator: true,
-            useESModules: false, // Disable ES modules for web
+            useESModules: true, // Enable ES modules for web
           }],
+          // Required for react-native-reanimated
+          'react-native-reanimated/plugin',
         ],
       },
     },
