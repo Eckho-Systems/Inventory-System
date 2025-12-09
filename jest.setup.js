@@ -37,6 +37,12 @@ global.window = {
 global.setTimeout = setTimeout;
 global.clearTimeout = clearTimeout;
 
+// Fix for testing-library react-native setTimeout issue
+global.globalObj = {
+  setTimeout: setTimeout,
+  clearTimeout: clearTimeout,
+};
+
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')

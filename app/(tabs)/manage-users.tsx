@@ -221,20 +221,31 @@ export default function ManageUsersScreen() {
   };
 
   const handleDeleteUser = async (user: User) => {
-    // Use a simpler confirmation approach
-    if (window.confirm(`Are you sure you want to permanently delete ${user.username}? This action cannot be undone.`)) {
-      try {
-        const success = await userService.delete(user.id);
-        if (success) {
-          loadUsers();
-          Alert.alert('Success', 'User deleted successfully');
-        } else {
-          Alert.alert('Error', 'Failed to delete user');
-        }
-      } catch (error) {
-        Alert.alert('Error', 'Failed to delete user');
-      }
-    }
+    // Use Alert for confirmation in React Native
+    Alert.alert(
+      'Confirm Delete',
+      `Are you sure you want to permanently delete ${user.username}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const success = await userService.delete(user.id);
+              if (success) {
+                loadUsers();
+                Alert.alert('Success', 'User deleted successfully');
+              } else {
+                Alert.alert('Error', 'Failed to delete user');
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete user');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const canEditUser = (user: User) => {
